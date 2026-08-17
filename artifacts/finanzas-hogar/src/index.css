@@ -168,6 +168,7 @@
 .focus-ring:focus-visible { outline: 3px solid hsl(var(--accent) / .55); outline-offset: 2px; }
 .mobile-header { padding-top: env(safe-area-inset-top); height: calc(74px + env(safe-area-inset-top)); }
 .mobile-bottom-nav { min-height: 72px; padding-bottom: max(8px, env(safe-area-inset-bottom)); }
+.compact-desktop-nav { display: none; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
@@ -177,4 +178,43 @@
   input, select, button { -webkit-tap-highlight-color: transparent; }
   select { min-height: 44px; }
   .recharts-wrapper { max-width: 100%; }
+}
+
+@media (min-width: 640px) and (max-width: 1440px) {
+  .app-sidebar { display: none !important; }
+  .mobile-bottom-nav { display: none !important; }
+  .compact-desktop-nav {
+    position: fixed;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 20;
+    display: block;
+    min-height: 70px;
+    padding: 10px 28px max(10px, env(safe-area-inset-bottom));
+    color: hsl(var(--sidebar-foreground));
+    background: hsl(var(--sidebar));
+    box-shadow: 0 -8px 24px rgba(23, 48, 44, .08);
+  }
+  .compact-desktop-nav__inner {
+    display: flex;
+    min-height: 50px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+    max-width: 1500px;
+    margin: 0 auto;
+  }
+  .app-main { padding-bottom: 94px !important; }
+  .dashboard-shell {
+    padding-top: 24px !important;
+    padding-bottom: 22px !important;
+  }
+  .dashboard-period { margin-top: 20px !important; padding-bottom: 14px !important; }
+  .dashboard-stats { margin-top: 16px !important; }
+  .dashboard-content { margin-top: 16px !important; }
+  .dashboard-content > section { padding: 18px !important; }
+  .dashboard-content .relative.h-\[260px\] { height: 218px; }
+  .dashboard-content .space-y-3 { gap: .5rem; }
+  .dashboard-content .group { padding-top: .55rem; padding-bottom: .55rem; }
 }
