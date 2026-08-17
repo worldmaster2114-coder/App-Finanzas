@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "Finanzas del Hogar"
+description = "Aplicación responsive para controlar ingresos y gastos del hogar con dashboard, categorías, gráficos, historial y persistencia local."
+version = "1.0.0"
+id = "artifacts/finanzas-hogar"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 25687
+
+[services.development]
+run = "pnpm --filter @workspace/finanzas-hogar run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/finanzas-hogar", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/finanzas-hogar/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "25687"
+BASE_PATH = "/"

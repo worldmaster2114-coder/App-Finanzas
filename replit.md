@@ -1,6 +1,6 @@
-# [Project name]
+# Finanzas del Hogar
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+Aplicación responsive para registrar ingresos y gastos del hogar, consultar el balance mensual y entender la distribución de gastos por categoría.
 
 ## Run & Operate
 
@@ -22,23 +22,31 @@ _Replace the heading above with the project's name, and this line with one sente
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- `artifacts/finanzas-hogar/src/App.tsx` — dashboard, formulario de movimientos, filtros y persistencia local.
+- `artifacts/finanzas-hogar/src/index.css` — sistema visual, tipografía, responsive y animaciones.
+- `artifacts/finanzas-hogar` — aplicación web principal servida en la ruta raíz.
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- La primera versión es local-first: los movimientos se serializan en `localStorage` para conservarlos después de recargar.
+- El dashboard filtra y calcula los totales en el cliente para mantener una experiencia rápida y usable sin conexión.
+- Los datos de ejemplo solo se cargan cuando no existe todavía una colección guardada.
 
 ## Product
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+- Resumen mensual de ingresos, gastos, balance y tasa de ahorro.
+- Distribución interactiva de gastos por categoría.
+- Registro de ingresos y gastos con categorías dinámicas, fecha y validación.
+- Historial con búsqueda, filtro por categoría y eliminación confirmada.
 
 ## User preferences
 
-_Populate as you build — explicit user instructions worth remembering across sessions._
+- Interfaz en español.
+- Formato local `es-DO` para monedas y fechas.
 
 ## Gotchas
 
-_Populate as you build — sharp edges, "always run X before Y" rules._
+- No borrar la clave `finanzas-hogar:transactions` de `localStorage` salvo que se quiera reiniciar intencionalmente la demo.
 
 ## Pointers
 
