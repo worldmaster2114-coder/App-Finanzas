@@ -180,7 +180,7 @@
   .recharts-wrapper { max-width: 100%; }
 }
 
-@media (min-width: 640px) and (max-width: 1440px) {
+@media (min-width: 640px) {
   .app-sidebar { display: none !important; }
   .mobile-bottom-nav { display: none !important; }
   .compact-desktop-nav {
