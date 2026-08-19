@@ -212,9 +212,12 @@
   }
   .dashboard-period { margin-top: 20px !important; padding-bottom: 14px !important; }
   .dashboard-stats { margin-top: 16px !important; }
-  .dashboard-content { margin-top: 16px !important; }
-  .dashboard-content > section { padding: 18px !important; }
-  .dashboard-content .relative.h-\[260px\] { height: 218px; }
+  .dashboard-stats > div { padding: 14px !important; }
+  .dashboard-stats > div p.font-mono { margin-top: 10px !important; font-size: 1.2rem !important; line-height: 1.1; }
+  .dashboard-stats > div > p:last-child { margin-top: 4px !important; }
+  .dashboard-content { margin-top: 12px !important; }
+  .dashboard-content > section { padding: 16px !important; }
+  .dashboard-content .relative.h-\[260px\] { height: 210px; }
   .dashboard-content .space-y-3 { gap: .5rem; }
   .dashboard-content .group { padding-top: .55rem; padding-bottom: .55rem; }
 }
