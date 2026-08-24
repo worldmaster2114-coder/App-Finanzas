@@ -1,20 +1,99 @@
-// Export your models here. Add one export per file
-// export * from "./posts";
-//
-// Each model/table should ideally be split into different files.
-// Each model/table should define a Drizzle table, insert schema, and types:
-//
-//   import { pgTable, text, serial } from "drizzle-orm/pg-core";
-//   import { createInsertSchema } from "drizzle-zod";
-//   import { z } from "zod/v4";
-//
-//   export const postsTable = pgTable("posts", {
-//     id: serial("id").primaryKey(),
-//     title: text("title").notNull(),
-//   });
-//
-//   export const insertPostSchema = createInsertSchema(postsTable).omit({ id: true });
-//   export type InsertPost = z.infer<typeof insertPostSchema>;
-//   export type Post = typeof postsTable.$inferSelect;
+import { pgTable, text, real, timestamp, boolean, integer } from "drizzle-orm/pg-core";
+import { createInsertSchema, createSelectSchema } from "drizzle-zod";
+import { z } from "zod/v4";
 
-export {}
+// 1. ACCOUNTS TABLE
+export const accountsTable = pgTable("accounts", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  type: text("type").$type<"cash" | "bank" | "credit_card" | "savings">().notNull(),
+  balance: real("balance").notNull().default(0),
+  currency: text("currency").notNull().default("DOP"),
+  color: text("color").notNull().default("#3b82f6"),
+  icon: text("icon").notNull().default("Wallet"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertAccountSchema = createInsertSchema(accountsTable);
+export type InsertAccount = z.infer<typeof insertAccountSchema>;
+export type Account = typeof accountsTable.$inferSelect;
+
+// 2. CATEGORIES TABLE
+export const categoriesTable = pgTable("categories", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  type: text("type").$type<"income" | "expense">().notNull(),
+  icon: text("icon").notNull().default("Tag"),
+  color: text("color").notNull().default("#6b7280"),
+  isDefault: boolean("is_default").notNull().default(false),
+  parentId: text("parent_id"),
+});
+
+export const insertCategorySchema = createInsertSchema(categoriesTable);
+export type InsertCategory = z.infer<typeof insertCategorySchema>;
+export type Category = typeof categoriesTable.$inferSelect;
+
+// 3. TRANSACTIONS TABLE
+export const transactionsTable = pgTable("transactions", {
+  id: text("id").primaryKey(),
+  accountId: text("account_id").notNull(),
+  categoryId: text("category_id").notNull(),
+  amount: real("amount").notNull(),
+  type: text("type").$type<"income" | "expense" | "transfer">().notNull(),
+  destinationAccountId: text("destination_account_id"),
+  date: text("date").notNull(),
+  note: text("note"),
+  isRecurring: boolean("is_recurring").notNull().default(false),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertTransactionSchema = createInsertSchema(transactionsTable);
+export type InsertTransaction = z.infer<typeof insertTransactionSchema>;
+export type Transaction = typeof transactionsTable.$inferSelect;
+
+// 4. BUDGETS TABLE
+export const budgetsTable = pgTable("budgets", {
+  id: text("id").primaryKey(),
+  categoryId: text("category_id"), // null if global
+  amountLimit: real("amount_limit").notNull(),
+  period: text("period").$type<"weekly" | "monthly" | "annual">().notNull().default("monthly"),
+  startDate: text("start_date").notNull(),
+  alertThreshold: integer("alert_threshold").notNull().default(80),
+});
+
+export const insertBudgetSchema = createInsertSchema(budgetsTable);
+export type InsertBudget = z.infer<typeof insertBudgetSchema>;
+export type Budget = typeof budgetsTable.$inferSelect;
+
+// 5. SAVINGS GOALS TABLE
+export const savingsGoalsTable = pgTable("savings_goals", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  targetAmount: real("target_amount").notNull(),
+  currentAmount: real("current_amount").notNull().default(0),
+  deadline: text("deadline").notNull(),
+  color: text("color").notNull().default("#10b981"),
+  icon: text("icon").notNull().default("Target"),
+  status: text("status").$type<"active" | "completed" | "paused">().notNull().default("active"),
+});
+
+export const insertSavingsGoalSchema = createInsertSchema(savingsGoalsTable);
+export type InsertSavingsGoal = z.infer<typeof insertSavingsGoalSchema>;
+export type SavingsGoal = typeof savingsGoalsTable.$inferSelect;
+
+// 6. RECURRING TRANSACTIONS TABLE
+export const recurringTransactionsTable = pgTable("recurring_transactions", {
+  id: text("id").primaryKey(),
+  accountId: text("account_id").notNull(),
+  categoryId: text("category_id").notNull(),
+  amount: real("amount").notNull(),
+  type: text("type").$type<"income" | "expense">().notNull(),
+  frequency: text("frequency").$type<"daily" | "weekly" | "monthly" | "yearly">().notNull().default("monthly"),
+  nextExecutionDate: text("next_execution_date").notNull(),
+  autoApply: boolean("auto_apply").notNull().default(true),
+  note: text("note"),
+});
+
+export const insertRecurringTransactionSchema = createInsertSchema(recurringTransactionsTable);
+export type InsertRecurringTransaction = z.infer<typeof insertRecurringTransactionSchema>;
+export type RecurringTransaction = typeof recurringTransactionsTable.$inferSelect;
