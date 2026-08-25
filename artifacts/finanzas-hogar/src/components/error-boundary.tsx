@@ -56,6 +56,13 @@ function DefaultFallback({ error, resetError }: ErrorFallbackProps) {
         <p className="text-xs text-muted-foreground leading-relaxed">
           Ocurrió un inconveniente temporal al cargar la información en pantalla.
         </p>
+
+        {error && (
+          <div className="text-left bg-secondary/50 p-2.5 rounded-xl text-[10px] font-mono text-destructive overflow-x-auto max-h-24">
+            {error.message || String(error)}
+          </div>
+        )}
+
         <div className="flex flex-col gap-2 pt-2">
           <button
             type="button"
