@@ -128,6 +128,26 @@ export async function initDatabase() {
       auto_apply BOOLEAN DEFAULT TRUE NOT NULL,
       note TEXT
     );
+
+    CREATE TABLE IF NOT EXISTS support_tickets (
+      id TEXT PRIMARY KEY,
+      user_id TEXT,
+      user_email TEXT NOT NULL,
+      user_name TEXT NOT NULL,
+      subject TEXT NOT NULL,
+      category TEXT DEFAULT 'general' NOT NULL,
+      message TEXT NOT NULL,
+      status TEXT DEFAULT 'open' NOT NULL,
+      priority TEXT DEFAULT 'medium' NOT NULL,
+      admin_reply TEXT,
+      created_at TIMESTAMP DEFAULT NOW() NOT NULL,
+      resolved_at TIMESTAMP
+    );
+
+    DO $$ BEGIN
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'user' NOT NULL;
+    EXCEPTION WHEN OTHERS THEN NULL;
+    END $$;
   `;
 
   try {

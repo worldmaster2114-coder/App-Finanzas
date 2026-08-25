@@ -13,6 +13,8 @@ import { OnboardingWizard } from '@/components/onboarding-wizard';
 import { AuthModal } from '@/components/auth-modal';
 import { WorkspaceSwitcher } from '@/components/workspace-switcher';
 import { LoginScreen } from '@/components/login-screen';
+import { AdminSupportPanel } from '@/components/admin-support-panel';
+import { SupportTicketModal } from '@/components/support-ticket-modal';
 import { loadFinanceData, saveFinanceData } from '@/services/storage';
 import { Budget, FinanceDataState, RecurringTransaction, SavingsGoal, Transaction, UserProfile, UserPurpose, UserUseCase, Workspace } from '@/types/finance';
 import {
@@ -34,6 +36,8 @@ import {
   LogOut,
   KeyRound,
   Users,
+  ShieldAlert,
+  HelpCircle,
 } from 'lucide-react';
 
 const queryClient = new QueryClient();
@@ -45,6 +49,8 @@ export function AppShell() {
   const [isFastEntryOpen, setIsFastEntryOpen] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
+  const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(false);
+  const [isSupportTicketModalOpen, setIsSupportTicketModalOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(() => {
     return document.documentElement.classList.contains('dark') || window.matchMedia('(prefers-color-scheme: dark)').matches;
   });
@@ -431,6 +437,29 @@ export function AppShell() {
               </button>
             );
           })}
+
+          <div className="pt-3 border-t border-sidebar-border/60 space-y-1">
+            <p className="px-2 mb-1 text-[10px] font-bold uppercase tracking-wider text-sidebar-foreground/50">Centro de Asistencia</p>
+            
+            <button
+              onClick={() => setIsSupportTicketModalOpen(true)}
+              className="flex w-full items-center gap-3 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground transition"
+            >
+              <HelpCircle size={17} className="text-primary" />
+              <span>Ayuda & Soporte</span>
+            </button>
+
+            <button
+              onClick={() => setIsAdminPanelOpen(true)}
+              className="flex w-full items-center justify-between rounded-xl px-3.5 py-2.5 text-xs font-bold text-amber-500 bg-amber-500/10 border border-amber-500/20 hover:bg-amber-500/20 transition"
+            >
+              <div className="flex items-center gap-2.5">
+                <ShieldAlert size={17} />
+                <span>Panel Super Admin</span>
+              </div>
+              <span className="rounded-md bg-amber-500/30 px-1.5 py-0.2 text-[9px] font-extrabold">ADMIN</span>
+            </button>
+          </div>
         </div>
 
         {/* Fast Action Card */}
@@ -616,6 +645,20 @@ export function AppShell() {
         user={dataState.user}
         onGoogleLogin={handleGoogleLogin}
         onLogout={handleLogout}
+      />
+
+      {/* Super Admin & Support Panel */}
+      <AdminSupportPanel
+        isOpen={isAdminPanelOpen}
+        onClose={() => setIsAdminPanelOpen(false)}
+        currentUser={dataState.user}
+      />
+
+      {/* Support Inquiries Modal for Users */}
+      <SupportTicketModal
+        isOpen={isSupportTicketModalOpen}
+        onClose={() => setIsSupportTicketModalOpen(false)}
+        user={dataState.user}
       />
 
       <Toaster />

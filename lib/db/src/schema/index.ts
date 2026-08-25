@@ -9,6 +9,7 @@ export const usersTable = pgTable("users", {
   email: text("email").notNull().unique(),
   name: text("name").notNull(),
   picture: text("picture"),
+  role: text("role").$type<"super_admin" | "admin" | "user">().default("user").notNull(),
   purpose: text("purpose"), // e.g. "ahorrar", "controlar", "deudas", "hogar"
   useCase: text("use_case").$type<"personal" | "shared">().default("personal"),
   activeWorkspaceId: text("active_workspace_id"),
@@ -148,3 +149,23 @@ export const recurringTransactionsTable = pgTable("recurring_transactions", {
 export const insertRecurringTransactionSchema = createInsertSchema(recurringTransactionsTable);
 export type InsertRecurringTransaction = z.infer<typeof insertRecurringTransactionSchema>;
 export type RecurringTransaction = typeof recurringTransactionsTable.$inferSelect;
+
+// 7. SUPPORT TICKETS TABLE
+export const supportTicketsTable = pgTable("support_tickets", {
+  id: text("id").primaryKey(),
+  userId: text("user_id"),
+  userEmail: text("user_email").notNull(),
+  userName: text("user_name").notNull(),
+  subject: text("subject").notNull(),
+  category: text("category").notNull().default("general"),
+  message: text("message").notNull(),
+  status: text("status").$type<"open" | "in_progress" | "resolved">().notNull().default("open"),
+  priority: text("priority").$type<"low" | "medium" | "high" | "urgent">().notNull().default("medium"),
+  adminReply: text("admin_reply"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  resolvedAt: timestamp("resolved_at"),
+});
+
+export const insertSupportTicketSchema = createInsertSchema(supportTicketsTable);
+export type InsertSupportTicket = z.infer<typeof insertSupportTicketSchema>;
+export type SupportTicket = typeof supportTicketsTable.$inferSelect;
