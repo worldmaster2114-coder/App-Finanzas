@@ -193,7 +193,12 @@ export function AppShell() {
               <Wallet size={22} strokeWidth={2.3} />
             </span>
             <div>
-              <span className="block font-serif text-xl font-bold leading-tight">50-30-20</span>
+              <div className="flex items-center gap-1.5">
+                <span className="block font-serif text-xl font-bold leading-tight">50-30-20</span>
+                <span className="rounded-md bg-sidebar-primary/20 px-1.5 py-0.5 text-[9px] font-extrabold uppercase tracking-wider text-sidebar-primary">
+                  Grupo Walnut
+                </span>
+              </div>
               <span className="block text-[10px] font-bold uppercase tracking-widest text-sidebar-foreground/60">
                 Regla 50/30/20 & Control
               </span>
@@ -258,7 +263,10 @@ export function AppShell() {
           <span className="grid h-8 w-8 place-items-center rounded-xl bg-primary text-primary-foreground">
             <Wallet size={18} />
           </span>
-          50-30-20
+          <span>50-30-20</span>
+          <span className="rounded-md bg-primary/10 px-1.5 py-0.5 text-[9px] font-extrabold uppercase tracking-wider text-primary">
+            Grupo Walnut
+          </span>
         </div>
         <button
           onClick={() => setIsDarkMode(!isDarkMode)}
@@ -276,7 +284,12 @@ export function AppShell() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between pb-4 border-b border-sidebar-border">
-              <span className="font-serif text-xl font-bold">50-30-20</span>
+              <div>
+                <span className="font-serif text-xl font-bold block">50-30-20</span>
+                <span className="text-[10px] font-extrabold uppercase tracking-wider text-sidebar-primary">
+                  Una app de Grupo Walnut
+                </span>
+              </div>
               <button onClick={() => setMobileMenuOpen(false)} className="p-1">
                 <X size={20} />
               </button>
@@ -360,6 +373,11 @@ export function AppShell() {
             onDeleteTransaction={handleDeleteTransaction}
           />
         )}
+
+        {/* Footer Credit */}
+        <footer className="mt-12 text-center text-xs text-muted-foreground border-t border-border/50 pt-4">
+          <p>50-30-20 — Una plataforma desarrollada por <strong className="text-foreground font-semibold">Grupo Walnut</strong></p>
+        </footer>
       </main>
 
       {/* Mobile Floating Action Button (FAB - Monefy Style) */}
