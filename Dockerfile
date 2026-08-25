@@ -5,7 +5,7 @@ RUN corepack enable && corepack prepare pnpm@10.33.2 --activate
 
 WORKDIR /app
 
-# Install deps first (layer caching)
+# ── 1. Install dependencies (cached layer) ─────────────────────────────────
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY artifacts/api-server/package.json ./artifacts/api-server/
 COPY artifacts/finanzas-hogar/package.json ./artifacts/finanzas-hogar/
@@ -18,12 +18,16 @@ COPY scripts/package.json ./scripts/
 
 RUN pnpm install --frozen-lockfile
 
-# Copy source after deps
+# ── 2. Copy source ─────────────────────────────────────────────────────────
 COPY . .
 
-# Build everything (frontend + backend)
-RUN pnpm run build
+# ── 3. Build frontend (Vite → dist/public) ─────────────────────────────────
+RUN pnpm --filter @workspace/finanzas-hogar run build
 
+# ── 4. Build backend (esbuild → dist/index.mjs) ────────────────────────────
+RUN pnpm --filter @workspace/api-server run build
+
+# ── 5. Runtime ─────────────────────────────────────────────────────────────
 ENV NODE_ENV=production
 ENV PORT=5000
 ENV FRONTEND_DIST=/app/artifacts/finanzas-hogar/dist/public
