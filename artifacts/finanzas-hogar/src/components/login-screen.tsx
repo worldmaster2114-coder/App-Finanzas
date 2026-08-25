@@ -30,6 +30,17 @@ export function LoginScreen({ onGoogleLogin, onEnterAsGuest }: LoginScreenProps)
   const [loading, setLoading] = useState(false);
   const googleBtnRef = useRef<HTMLDivElement>(null);
 
+  // Read invite query params from URL
+  const [inviteParams] = useState(() => {
+    if (typeof window === 'undefined') return { code: null, owner: null, workspace: null };
+    const params = new URLSearchParams(window.location.search);
+    return {
+      code: params.get('join'),
+      owner: params.get('owner') || 'Tu Pareja o Familiar',
+      workspace: params.get('workspace') || 'Hogar Compartido',
+    };
+  });
+
   const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || DEFAULT_GOOGLE_CLIENT_ID;
 
   // Initialize Google Identity Services SDK
@@ -125,6 +136,18 @@ export function LoginScreen({ onGoogleLogin, onEnterAsGuest }: LoginScreenProps)
                   Ingresa con tu cuenta de Google para sincronizar tus finanzas en la nube.
                 </p>
               </div>
+
+              {/* Dynamic Invitation Banner from Link */}
+              {inviteParams.code && (
+                <div className="rounded-2xl border border-purple-500/40 bg-purple-500/15 p-3.5 text-left space-y-1 animate-in zoom-in-95">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-purple-400">
+                    <Sparkles size={14} /> Invitación de {inviteParams.owner}
+                  </div>
+                  <p className="text-[11px] text-foreground/90 leading-snug">
+                    Te ha invitado a compartir los gastos del hogar en <strong className="text-purple-300">"{inviteParams.workspace}"</strong>. Inicia sesión para unirte.
+                  </p>
+                </div>
+              )}
 
               {/* Official Google Identity Button Target */}
               <div ref={googleBtnRef} className="flex justify-center min-h-[40px]"></div>

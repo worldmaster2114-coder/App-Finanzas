@@ -56,6 +56,20 @@ export async function initDatabase() {
       joined_at TIMESTAMP DEFAULT NOW() NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS workspace_join_requests (
+      id TEXT PRIMARY KEY,
+      workspace_id TEXT NOT NULL,
+      workspace_name TEXT NOT NULL,
+      owner_id TEXT NOT NULL,
+      requester_id TEXT NOT NULL,
+      requester_name TEXT NOT NULL,
+      requester_email TEXT NOT NULL,
+      requester_picture TEXT,
+      status TEXT DEFAULT 'pending' NOT NULL,
+      created_at TIMESTAMP DEFAULT NOW() NOT NULL,
+      responded_at TIMESTAMP
+    );
+
     CREATE TABLE IF NOT EXISTS accounts (
       id TEXT PRIMARY KEY,
       workspace_id TEXT,

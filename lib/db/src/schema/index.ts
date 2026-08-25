@@ -47,6 +47,25 @@ export const insertWorkspaceMemberSchema = createInsertSchema(workspaceMembersTa
 export type InsertWorkspaceMember = z.infer<typeof insertWorkspaceMemberSchema>;
 export type WorkspaceMember = typeof workspaceMembersTable.$inferSelect;
 
+// WORKSPACE JOIN REQUESTS TABLE (Enlace de Invitación & Aprobación)
+export const workspaceJoinRequestsTable = pgTable("workspace_join_requests", {
+  id: text("id").primaryKey(),
+  workspaceId: text("workspace_id").notNull(),
+  workspaceName: text("workspace_name").notNull(),
+  ownerId: text("owner_id").notNull(),
+  requesterId: text("requester_id").notNull(),
+  requesterName: text("requester_name").notNull(),
+  requesterEmail: text("requester_email").notNull(),
+  requesterPicture: text("requester_picture"),
+  status: text("status").$type<"pending" | "accepted" | "rejected">().notNull().default("pending"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  respondedAt: timestamp("responded_at"),
+});
+
+export const insertWorkspaceJoinRequestSchema = createInsertSchema(workspaceJoinRequestsTable);
+export type InsertWorkspaceJoinRequest = z.infer<typeof insertWorkspaceJoinRequestSchema>;
+export type WorkspaceJoinRequest = typeof workspaceJoinRequestsTable.$inferSelect;
+
 // 1. ACCOUNTS TABLE
 export const accountsTable = pgTable("accounts", {
   id: text("id").primaryKey(),

@@ -15,6 +15,7 @@ import { WorkspaceSwitcher } from '@/components/workspace-switcher';
 import { LoginScreen } from '@/components/login-screen';
 import { AdminSupportPanel } from '@/components/admin-support-panel';
 import { SupportTicketModal } from '@/components/support-ticket-modal';
+import { JoinRequestBanner } from '@/components/join-request-banner';
 import { loadFinanceData, saveFinanceData } from '@/services/storage';
 import { Budget, FinanceDataState, RecurringTransaction, SavingsGoal, Transaction, UserProfile, UserPurpose, UserUseCase, Workspace } from '@/types/finance';
 import {
@@ -140,6 +141,25 @@ export function AppShell() {
       user: updatedUser,
     }));
     setIsAuthenticated(true);
+
+    // If registered via invitation link (?join=XYZ123), notify the owner!
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const inviteCode = params.get('join');
+      if (inviteCode) {
+        fetch('/api/finance/join-request', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            inviteCode,
+            requester: updatedUser,
+          }),
+        }).catch((err) => console.warn('Error submitting join request:', err));
+
+        // Join workspace locally as well
+        handleJoinSharedWorkspace(inviteCode);
+      }
+    }
 
     // If new user who hasn't completed onboarding yet, open the secondary onboarding wizard!
     if (!updatedUser.hasCompletedOnboarding) {
@@ -563,6 +583,15 @@ export function AppShell() {
 
       {/* Main Content Body */}
       <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 pb-28 md:pb-8 max-w-7xl mx-auto w-full">
+        
+        {/* Real-time Join Request Approval Banner for Household Owner */}
+        <JoinRequestBanner
+          currentUser={dataState.user}
+          onAcceptedMember={(wsId) => {
+            handleSwitchWorkspace(wsId);
+          }}
+        />
+
         {activeTab === 'dashboard' && (
           <DashboardAnalytics
             accounts={dataState.accounts}
