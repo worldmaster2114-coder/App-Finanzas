@@ -193,9 +193,9 @@ export function AppShell() {
               <Wallet size={22} strokeWidth={2.3} />
             </span>
             <div>
-              <span className="block font-serif text-xl font-bold leading-tight">Al día</span>
+              <span className="block font-serif text-xl font-bold leading-tight">50-30-20</span>
               <span className="block text-[10px] font-bold uppercase tracking-widest text-sidebar-foreground/60">
-                Finanzas Personales
+                Regla 50/30/20 & Control
               </span>
             </div>
           </div>
@@ -258,7 +258,7 @@ export function AppShell() {
           <span className="grid h-8 w-8 place-items-center rounded-xl bg-primary text-primary-foreground">
             <Wallet size={18} />
           </span>
-          Al día
+          50-30-20
         </div>
         <button
           onClick={() => setIsDarkMode(!isDarkMode)}
@@ -276,7 +276,7 @@ export function AppShell() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between pb-4 border-b border-sidebar-border">
-              <span className="font-serif text-xl font-bold">Al día</span>
+              <span className="font-serif text-xl font-bold">50-30-20</span>
               <button onClick={() => setMobileMenuOpen(false)} className="p-1">
                 <X size={20} />
               </button>

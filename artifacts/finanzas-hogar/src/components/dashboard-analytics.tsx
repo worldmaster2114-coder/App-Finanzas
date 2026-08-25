@@ -112,6 +112,38 @@ export function DashboardAnalytics({
     return Array.from(set).sort((a, b) => b - a);
   }, [transactions, selectedYear]);
 
+  // 50-30-20 Rule Calculation
+  const rule503020 = useMemo(() => {
+    let needs = 0; // 50% (Needs: Vivienda, Supermercado, Servicios, Salud, Transporte)
+    let wants = 0; // 30% (Wants: Entretenimiento, Educación, Otros)
+
+    monthTransactions
+      .filter((t) => t.type === 'expense')
+      .forEach((t) => {
+        const cat = categories.find((c) => c.id === t.categoryId);
+        const name = cat ? cat.name : '';
+        if (
+          name.includes('Super') ||
+          name.includes('Vivienda') ||
+          name.includes('Servicios') ||
+          name.includes('Salud') ||
+          name.includes('Transporte')
+        ) {
+          needs += t.amount;
+        } else {
+          wants += t.amount;
+        }
+      });
+
+    const savings = Math.max(0, monthlyIncome - (needs + wants));
+
+    const needsPct = monthlyIncome > 0 ? Math.round((needs / monthlyIncome) * 100) : 0;
+    const wantsPct = monthlyIncome > 0 ? Math.round((wants / monthlyIncome) * 100) : 0;
+    const savingsPct = monthlyIncome > 0 ? Math.round((savings / monthlyIncome) * 100) : 0;
+
+    return { needs, wants, savings, needsPct, wantsPct, savingsPct };
+  }, [monthTransactions, categories, monthlyIncome]);
+
   return (
     <div className="space-y-6">
       {/* Month / Year Selector Header */}
@@ -199,6 +231,67 @@ export function DashboardAnalytics({
           <p className="mt-1 text-[11px] text-muted-foreground">
             {netSavings >= 0 ? `+${formatMoney(netSavings)} ahorrados` : `Déficit de ${formatMoney(Math.abs(netSavings))}`}
           </p>
+        </div>
+      </div>
+
+      {/* 50-30-20 Rule Breakdown Widget */}
+      <div className="rounded-2xl border border-primary/30 bg-gradient-to-r from-primary/10 via-card to-card p-5 shadow-xs">
+        <div className="flex items-center justify-between pb-2 border-b border-border/60">
+          <div>
+            <h3 className="font-serif text-lg font-bold text-foreground">Regla de Presupuesto 50 / 30 / 20</h3>
+            <p className="text-xs text-muted-foreground">50% Necesidades • 30% Deseos • 20% Ahorro e Inversión</p>
+          </div>
+          <span className="rounded-lg bg-primary/15 px-2.5 py-1 text-[11px] font-bold text-primary">Regla 50-30-20</span>
+        </div>
+
+        <div className="mt-4 grid gap-4 sm:grid-cols-3">
+          {/* Needs 50% */}
+          <div className="rounded-xl border border-border/60 bg-card p-3.5 space-y-1.5">
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-bold text-amber-600 dark:text-amber-400">50% Necesidades</span>
+              <span className="font-mono text-xs font-bold text-foreground">{rule503020.needsPct}% / 50%</span>
+            </div>
+            <p className="font-mono text-lg font-bold text-foreground">{formatMoney(rule503020.needs)}</p>
+            <div className="h-2 w-full overflow-hidden rounded-full bg-secondary">
+              <div
+                className={`h-full rounded-full transition-all duration-500 ${rule503020.needsPct > 50 ? 'bg-destructive' : 'bg-amber-500'}`}
+                style={{ width: `${Math.min(100, rule503020.needsPct)}%` }}
+              />
+            </div>
+            <p className="text-[10px] text-muted-foreground">Vivienda, Comida, Salud, Transporte</p>
+          </div>
+
+          {/* Wants 30% */}
+          <div className="rounded-xl border border-border/60 bg-card p-3.5 space-y-1.5">
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-bold text-blue-600 dark:text-blue-400">30% Deseos y Ocio</span>
+              <span className="font-mono text-xs font-bold text-foreground">{rule503020.wantsPct}% / 30%</span>
+            </div>
+            <p className="font-mono text-lg font-bold text-foreground">{formatMoney(rule503020.wants)}</p>
+            <div className="h-2 w-full overflow-hidden rounded-full bg-secondary">
+              <div
+                className={`h-full rounded-full transition-all duration-500 ${rule503020.wantsPct > 30 ? 'bg-destructive' : 'bg-blue-500'}`}
+                style={{ width: `${Math.min(100, rule503020.wantsPct)}%` }}
+              />
+            </div>
+            <p className="text-[10px] text-muted-foreground">Entretenimiento, Ocio, Varios</p>
+          </div>
+
+          {/* Savings 20% */}
+          <div className="rounded-xl border border-border/60 bg-card p-3.5 space-y-1.5">
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-bold text-emerald-600 dark:text-emerald-400">20% Ahorros e Inversión</span>
+              <span className="font-mono text-xs font-bold text-foreground">{rule503020.savingsPct}% / 20%</span>
+            </div>
+            <p className="font-mono text-lg font-bold text-emerald-600 dark:text-emerald-400">{formatMoney(rule503020.savings)}</p>
+            <div className="h-2 w-full overflow-hidden rounded-full bg-secondary">
+              <div
+                className="h-full rounded-full bg-emerald-500 transition-all duration-500"
+                style={{ width: `${Math.min(100, rule503020.savingsPct)}%` }}
+              />
+            </div>
+            <p className="text-[10px] text-muted-foreground">Metas de ahorro, Fondo de reserva</p>
+          </div>
         </div>
       </div>
 
