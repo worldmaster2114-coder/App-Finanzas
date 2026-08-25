@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">50-30-20 Finanzas</string>
+    <string name="title_activity_main">50-30-20 Finanzas</string>
+    <string name="package_name">com.grupowalnut.finanzas503020</string>
+    <string name="custom_url_scheme">com.grupowalnut.finanzas503020</string>
+</resources>

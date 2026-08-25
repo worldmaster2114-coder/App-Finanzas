@@ -1,0 +1,6 @@
+{
+  "appId": "com.grupowalnut.finanzas503020",
+  "appName": "50-30-20 Finanzas",
+  "webDir": "dist/public",
+  "bundledWebRuntime": false
+}

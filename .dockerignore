@@ -1,0 +1,12 @@
+node_modules
+.git
+.gitignore
+dist
+android
+.gemini
+artifacts/finanzas-hogar/android
+artifacts/finanzas-hogar/dist
+artifacts/api-server/dist
+artifacts/mockup-sandbox/dist
+*.apk
+*.log
