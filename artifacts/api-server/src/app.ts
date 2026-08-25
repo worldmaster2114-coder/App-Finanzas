@@ -1,33 +1,19 @@
 import express, { type Express } from "express";
 import cors from "cors";
-import pinoHttp from "pino-http";
 import router from "./routes";
-import { logger } from "./lib/logger";
 
 const app: Express = express();
 
-app.use(
-  pinoHttp({
-    logger,
-    serializers: {
-      req(req) {
-        return {
-          id: req.id,
-          method: req.method,
-          url: req.url?.split("?")[0],
-        };
-      },
-      res(res) {
-        return {
-          statusCode: res.statusCode,
-        };
-      },
-    },
-  }),
-);
+// Simple request logger (no pino workers that can crash in Docker)
+app.use((req, _res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url?.split("?")[0]}`);
+  next();
+});
+
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
 
 import path from "path";
 
