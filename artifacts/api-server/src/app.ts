@@ -27,8 +27,11 @@ const staticPath = process.env["FRONTEND_DIST"] ||
 
 app.use(express.static(staticPath));
 
-// SPA Fallback for client-side routing
-app.get("*", (_req, res, next) => {
+// SPA Fallback for client-side routing (Express 5 compatible)
+app.use((req, res, next) => {
+  if (req.method !== "GET" || req.path.startsWith("/api")) {
+    return next();
+  }
   res.sendFile(path.join(staticPath, "index.html"), (err) => {
     if (err) next();
   });
