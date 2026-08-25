@@ -62,7 +62,19 @@ export function getInitialSeedData(): FinanceDataState {
     { id: 'rec-3', accountId: 'acc-2', categoryId: 'cat-exp-3', amount: 2890, type: 'expense', frequency: 'monthly', nextExecutionDate: new Date(year, month + 1, 7).toISOString().slice(0, 10), autoApply: true, note: 'Plan Claro Internet' },
   ];
 
+  const defaultWorkspace = {
+    id: 'ws-default',
+    name: 'Presupuesto Personal',
+    type: 'personal' as const,
+    inviteCode: '503020',
+    ownerId: 'usr-default',
+    membersCount: 1,
+  };
+
   return {
+    user: null,
+    workspaces: [defaultWorkspace],
+    activeWorkspace: defaultWorkspace,
     accounts: DEFAULT_ACCOUNTS,
     categories: DEFAULT_CATEGORIES,
     transactions,

@@ -9,8 +9,11 @@ import { SavingsVault } from '@/components/savings-vault';
 import { BudgetManager } from '@/components/budget-manager';
 import { FinancialForecast } from '@/components/financial-forecast';
 import { TransactionHistory } from '@/components/transaction-history';
+import { OnboardingWizard } from '@/components/onboarding-wizard';
+import { AuthModal } from '@/components/auth-modal';
+import { WorkspaceSwitcher } from '@/components/workspace-switcher';
 import { loadFinanceData, saveFinanceData } from '@/services/storage';
-import { Budget, FinanceDataState, RecurringTransaction, SavingsGoal, Transaction } from '@/types/finance';
+import { Budget, FinanceDataState, RecurringTransaction, SavingsGoal, Transaction, UserProfile, UserPurpose, UserUseCase, Workspace } from '@/types/finance';
 import {
   Wallet,
   LayoutDashboard,
@@ -25,6 +28,10 @@ import {
   Menu,
   X,
   Sparkles,
+  User as UserIcon,
+  LogIn,
+  KeyRound,
+  Users,
 } from 'lucide-react';
 
 const queryClient = new QueryClient();
@@ -33,6 +40,8 @@ export function AppShell() {
   const [dataState, setDataState] = useState<FinanceDataState>(loadFinanceData);
   const [activeTab, setActiveTab] = useState<'dashboard' | 'goals' | 'budgets' | 'forecast' | 'history'>('dashboard');
   const [isFastEntryOpen, setIsFastEntryOpen] = useState(false);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [isOnboardingOpen, setIsOnboardingOpen] = useState(() => !dataState.user?.hasCompletedOnboarding);
   const [isDarkMode, setIsDarkMode] = useState(() => {
     return document.documentElement.classList.contains('dark') || window.matchMedia('(prefers-color-scheme: dark)').matches;
   });
@@ -41,6 +50,16 @@ export function AppShell() {
   // Month & Year Filter state for analytics/budgets
   const [selectedMonth, setSelectedMonth] = useState(() => new Date().getMonth());
   const [selectedYear, setSelectedYear] = useState(() => new Date().getFullYear());
+
+  // Active workspace fallback
+  const activeWorkspace: Workspace = dataState.activeWorkspace || dataState.workspaces?.[0] || {
+    id: 'ws-default',
+    name: 'Presupuesto Personal',
+    type: 'personal',
+    inviteCode: '503020',
+    ownerId: 'default-owner',
+    membersCount: 1,
+  };
 
   // Save to localStorage on any data change
   useEffect(() => {
@@ -56,11 +75,116 @@ export function AppShell() {
     }
   }, [isDarkMode]);
 
+  // Handle Onboarding Completion
+  const handleOnboardingComplete = (data: {
+    name: string;
+    currency: string;
+    purpose: UserPurpose;
+    useCase: UserUseCase;
+    workspaceName: string;
+    inviteCodeToJoin?: string;
+  }) => {
+    const userProfile: UserProfile = {
+      id: dataState.user?.id || `usr-${Date.now()}`,
+      email: dataState.user?.email || 'usuario@grupowalnut.com',
+      name: data.name,
+      picture: dataState.user?.picture,
+      purpose: data.purpose,
+      useCase: data.useCase,
+      hasCompletedOnboarding: true,
+    };
+
+    let newWorkspace: Workspace = {
+      id: `ws-${Date.now()}`,
+      name: data.workspaceName,
+      type: data.useCase,
+      inviteCode: Math.random().toString(36).substring(2, 8).toUpperCase(),
+      ownerId: userProfile.id,
+      membersCount: data.useCase === 'shared' ? 2 : 1,
+    };
+
+    setDataState((prev) => ({
+      ...prev,
+      user: userProfile,
+      workspaces: [...(prev.workspaces || []), newWorkspace],
+      activeWorkspace: newWorkspace,
+    }));
+
+    setIsOnboardingOpen(false);
+  };
+
+  // Google Login Handler
+  const handleGoogleLogin = (googleUserData: Partial<UserProfile>) => {
+    const updatedUser: UserProfile = {
+      id: googleUserData.id || `usr-${Date.now()}`,
+      email: googleUserData.email || '',
+      name: googleUserData.name || 'Usuario Google',
+      picture: googleUserData.picture,
+      purpose: dataState.user?.purpose || 'controlar',
+      useCase: dataState.user?.useCase || 'personal',
+      hasCompletedOnboarding: true,
+    };
+
+    setDataState((prev) => ({
+      ...prev,
+      user: updatedUser,
+    }));
+  };
+
+  // Switch Workspace Handler
+  const handleSwitchWorkspace = (workspaceId: string) => {
+    const target = dataState.workspaces.find((w) => w.id === workspaceId);
+    if (target) {
+      setDataState((prev) => ({
+        ...prev,
+        activeWorkspace: target,
+      }));
+    }
+  };
+
+  // Create Shared Workspace Handler
+  const handleCreateSharedWorkspace = (name: string) => {
+    const newWs: Workspace = {
+      id: `ws-${Date.now()}`,
+      name,
+      type: 'shared',
+      inviteCode: Math.random().toString(36).substring(2, 8).toUpperCase(),
+      ownerId: dataState.user?.id || 'usr-default',
+      membersCount: 1,
+    };
+
+    setDataState((prev) => ({
+      ...prev,
+      workspaces: [...prev.workspaces, newWs],
+      activeWorkspace: newWs,
+    }));
+  };
+
+  // Join Shared Workspace Handler
+  const handleJoinSharedWorkspace = (code: string) => {
+    const joinedWs: Workspace = {
+      id: `ws-joined-${Date.now()}`,
+      name: `Hogar (${code})`,
+      type: 'shared',
+      inviteCode: code,
+      ownerId: 'owner-other',
+      membersCount: 2,
+    };
+
+    setDataState((prev) => ({
+      ...prev,
+      workspaces: [...prev.workspaces, joinedWs],
+      activeWorkspace: joinedWs,
+    }));
+  };
+
   // Fast Entry Save Handler
   const handleSaveTransaction = (newTxData: Omit<Transaction, 'id' | 'createdAt'>) => {
     const newTx: Transaction = {
       ...newTxData,
       id: `tx-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      workspaceId: activeWorkspace.id,
+      createdByUserId: dataState.user?.id,
       createdAt: new Date().toISOString(),
     };
 
@@ -90,6 +214,7 @@ export function AppShell() {
     const newGoal: SavingsGoal = {
       ...goalData,
       id: `sg-${Date.now()}`,
+      workspaceId: activeWorkspace.id,
     };
     setDataState((prev) => ({
       ...prev,
@@ -129,6 +254,7 @@ export function AppShell() {
     const newBudget: Budget = {
       ...budgetData,
       id: `b-${Date.now()}`,
+      workspaceId: activeWorkspace.id,
     };
     setDataState((prev) => ({
       ...prev,
@@ -141,6 +267,7 @@ export function AppShell() {
     const newRec: RecurringTransaction = {
       ...recData,
       id: `rec-${Date.now()}`,
+      workspaceId: activeWorkspace.id,
     };
     setDataState((prev) => ({
       ...prev,
@@ -154,7 +281,6 @@ export function AppShell() {
     if (!tx) return;
 
     setDataState((prev) => {
-      // Revert account balance effect
       const updatedAccounts = prev.accounts.map((acc) => {
         if (acc.id === tx.accountId) {
           const delta = tx.type === 'income' ? -tx.amount : tx.amount;
@@ -186,7 +312,7 @@ export function AppShell() {
     <div className="min-h-screen bg-background text-foreground md:flex">
       {/* Desktop Sidebar Navigation */}
       <aside className="hidden md:flex w-64 lg:w-72 shrink-0 flex-col bg-sidebar p-5 text-sidebar-foreground border-r border-sidebar-border">
-        {/* Brand */}
+        {/* Brand Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <span className="grid h-10 w-10 place-items-center rounded-2xl bg-sidebar-primary text-sidebar-primary-foreground shadow-sm">
@@ -213,8 +339,50 @@ export function AppShell() {
           </button>
         </div>
 
+        {/* User Profile Card / Auth Button */}
+        <div className="mt-5 rounded-2xl border border-sidebar-border bg-sidebar-accent/50 p-3">
+          <div className="flex items-center justify-between">
+            <button
+              onClick={() => setIsAuthModalOpen(true)}
+              className="flex items-center gap-2 text-left min-w-0 flex-1 hover:opacity-80 transition"
+            >
+              {dataState.user?.picture ? (
+                <img src={dataState.user.picture} alt={dataState.user.name} className="h-8 w-8 rounded-full border border-sidebar-primary" />
+              ) : (
+                <span className="grid h-8 w-8 place-items-center rounded-full bg-sidebar-primary/20 text-sidebar-primary text-xs font-extrabold">
+                  {dataState.user?.name ? dataState.user.name.charAt(0).toUpperCase() : <UserIcon size={16} />}
+                </span>
+              )}
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-bold truncate text-sidebar-foreground">{dataState.user?.name || 'Invitado'}</p>
+                <p className="text-[10px] text-sidebar-foreground/60 truncate">{dataState.user?.email || 'Clic para conectar Google'}</p>
+              </div>
+            </button>
+
+            <button
+              onClick={() => setIsAuthModalOpen(true)}
+              className="grid h-7 w-7 place-items-center rounded-lg bg-sidebar-accent text-sidebar-foreground/70 hover:text-sidebar-foreground"
+              title="Ajustes de cuenta"
+            >
+              <LogIn size={14} />
+            </button>
+          </div>
+
+          {/* Workspace Switcher Component */}
+          <div className="mt-3 pt-2.5 border-t border-sidebar-border">
+            <WorkspaceSwitcher
+              activeWorkspace={activeWorkspace}
+              workspaces={dataState.workspaces || [activeWorkspace]}
+              user={dataState.user}
+              onSwitchWorkspace={handleSwitchWorkspace}
+              onCreateSharedWorkspace={handleCreateSharedWorkspace}
+              onJoinSharedWorkspace={handleJoinSharedWorkspace}
+            />
+          </div>
+        </div>
+
         {/* Menu Section */}
-        <div className="mt-8 flex-1 space-y-1">
+        <div className="mt-6 flex-1 space-y-1">
           <p className="px-2 mb-2 text-[10px] font-bold uppercase tracking-wider text-sidebar-foreground/50">Navegación</p>
           {navItems.map((item) => {
             const Icon = item.icon;
@@ -269,10 +437,14 @@ export function AppShell() {
           </span>
         </div>
         <button
-          onClick={() => setIsDarkMode(!isDarkMode)}
+          onClick={() => setIsAuthModalOpen(true)}
           className="p-2 text-foreground"
         >
-          {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
+          {dataState.user?.picture ? (
+            <img src={dataState.user.picture} alt="User" className="h-7 w-7 rounded-full border border-primary" />
+          ) : (
+            <LogIn size={20} />
+          )}
         </button>
       </header>
 
@@ -396,6 +568,24 @@ export function AppShell() {
         accounts={dataState.accounts}
         categories={dataState.categories}
         onSaveTransaction={handleSaveTransaction}
+      />
+
+      {/* Onboarding Wizard Modal */}
+      <OnboardingWizard
+        isOpen={isOnboardingOpen}
+        initialUser={dataState.user}
+        onComplete={handleOnboardingComplete}
+      />
+
+      {/* Google Auth Modal */}
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        user={dataState.user}
+        onGoogleLogin={handleGoogleLogin}
+        onLogout={() => {
+          setDataState((prev) => ({ ...prev, user: null }));
+        }}
       />
 
       <Toaster />

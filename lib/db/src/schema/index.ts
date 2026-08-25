@@ -2,9 +2,54 @@ import { pgTable, text, real, timestamp, boolean, integer } from "drizzle-orm/pg
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
+// 0. USERS TABLE
+export const usersTable = pgTable("users", {
+  id: text("id").primaryKey(),
+  googleId: text("google_id").unique(),
+  email: text("email").notNull().unique(),
+  name: text("name").notNull(),
+  picture: text("picture"),
+  purpose: text("purpose"), // e.g. "ahorrar", "controlar", "deudas", "hogar"
+  useCase: text("use_case").$type<"personal" | "shared">().default("personal"),
+  activeWorkspaceId: text("active_workspace_id"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertUserSchema = createInsertSchema(usersTable);
+export type InsertUser = z.infer<typeof insertUserSchema>;
+export type User = typeof usersTable.$inferSelect;
+
+// WORKSPACES / HOGARES TABLE
+export const workspacesTable = pgTable("workspaces", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  type: text("type").$type<"personal" | "shared">().notNull().default("personal"),
+  inviteCode: text("invite_code").notNull().unique(), // 6-digit code for 2-3 members
+  ownerId: text("owner_id").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertWorkspaceSchema = createInsertSchema(workspacesTable);
+export type InsertWorkspace = z.infer<typeof insertWorkspaceSchema>;
+export type Workspace = typeof workspacesTable.$inferSelect;
+
+// WORKSPACE MEMBERS TABLE
+export const workspaceMembersTable = pgTable("workspace_members", {
+  id: text("id").primaryKey(),
+  workspaceId: text("workspace_id").notNull(),
+  userId: text("user_id").notNull(),
+  role: text("role").$type<"owner" | "member">().notNull().default("member"),
+  joinedAt: timestamp("joined_at").defaultNow().notNull(),
+});
+
+export const insertWorkspaceMemberSchema = createInsertSchema(workspaceMembersTable);
+export type InsertWorkspaceMember = z.infer<typeof insertWorkspaceMemberSchema>;
+export type WorkspaceMember = typeof workspaceMembersTable.$inferSelect;
+
 // 1. ACCOUNTS TABLE
 export const accountsTable = pgTable("accounts", {
   id: text("id").primaryKey(),
+  workspaceId: text("workspace_id"),
   name: text("name").notNull(),
   type: text("type").$type<"cash" | "bank" | "credit_card" | "savings">().notNull(),
   balance: real("balance").notNull().default(0),
@@ -21,6 +66,7 @@ export type Account = typeof accountsTable.$inferSelect;
 // 2. CATEGORIES TABLE
 export const categoriesTable = pgTable("categories", {
   id: text("id").primaryKey(),
+  workspaceId: text("workspace_id"),
   name: text("name").notNull(),
   type: text("type").$type<"income" | "expense">().notNull(),
   icon: text("icon").notNull().default("Tag"),
@@ -36,6 +82,7 @@ export type Category = typeof categoriesTable.$inferSelect;
 // 3. TRANSACTIONS TABLE
 export const transactionsTable = pgTable("transactions", {
   id: text("id").primaryKey(),
+  workspaceId: text("workspace_id"),
   accountId: text("account_id").notNull(),
   categoryId: text("category_id").notNull(),
   amount: real("amount").notNull(),
@@ -44,6 +91,7 @@ export const transactionsTable = pgTable("transactions", {
   date: text("date").notNull(),
   note: text("note"),
   isRecurring: boolean("is_recurring").notNull().default(false),
+  createdByUserId: text("created_by_user_id"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -54,7 +102,8 @@ export type Transaction = typeof transactionsTable.$inferSelect;
 // 4. BUDGETS TABLE
 export const budgetsTable = pgTable("budgets", {
   id: text("id").primaryKey(),
-  categoryId: text("category_id"), // null if global
+  workspaceId: text("workspace_id"),
+  categoryId: text("category_id"),
   amountLimit: real("amount_limit").notNull(),
   period: text("period").$type<"weekly" | "monthly" | "annual">().notNull().default("monthly"),
   startDate: text("start_date").notNull(),
@@ -68,6 +117,7 @@ export type Budget = typeof budgetsTable.$inferSelect;
 // 5. SAVINGS GOALS TABLE
 export const savingsGoalsTable = pgTable("savings_goals", {
   id: text("id").primaryKey(),
+  workspaceId: text("workspace_id"),
   name: text("name").notNull(),
   targetAmount: real("target_amount").notNull(),
   currentAmount: real("current_amount").notNull().default(0),
@@ -84,6 +134,7 @@ export type SavingsGoal = typeof savingsGoalsTable.$inferSelect;
 // 6. RECURRING TRANSACTIONS TABLE
 export const recurringTransactionsTable = pgTable("recurring_transactions", {
   id: text("id").primaryKey(),
+  workspaceId: text("workspace_id"),
   accountId: text("account_id").notNull(),
   categoryId: text("category_id").notNull(),
   amount: real("amount").notNull(),
