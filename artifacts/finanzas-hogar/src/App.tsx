@@ -548,7 +548,7 @@ export function AppShell() {
 
         {/* Footer Credit */}
         <footer className="mt-12 text-center text-xs text-muted-foreground border-t border-border/50 pt-4">
-          <p>50-30-20 — Una plataforma desarrollada por <strong className="text-foreground font-semibold">Grupo Walnut</strong></p>
+          <p>50-30-20 — Una plataforma desarrollada por <strong className="text-foreground font-semibold">Grupo Walnut</strong> · v2.3 · 2026</p>
         </footer>
       </main>
 
