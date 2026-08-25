@@ -12,6 +12,7 @@ import { TransactionHistory } from '@/components/transaction-history';
 import { OnboardingWizard } from '@/components/onboarding-wizard';
 import { AuthModal } from '@/components/auth-modal';
 import { WorkspaceSwitcher } from '@/components/workspace-switcher';
+import { LoginScreen } from '@/components/login-screen';
 import { loadFinanceData, saveFinanceData } from '@/services/storage';
 import { Budget, FinanceDataState, RecurringTransaction, SavingsGoal, Transaction, UserProfile, UserPurpose, UserUseCase, Workspace } from '@/types/finance';
 import {
@@ -30,6 +31,7 @@ import {
   Sparkles,
   User as UserIcon,
   LogIn,
+  LogOut,
   KeyRound,
   Users,
 } from 'lucide-react';
@@ -38,10 +40,11 @@ const queryClient = new QueryClient();
 
 export function AppShell() {
   const [dataState, setDataState] = useState<FinanceDataState>(loadFinanceData);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => !!dataState.user);
   const [activeTab, setActiveTab] = useState<'dashboard' | 'goals' | 'budgets' | 'forecast' | 'history'>('dashboard');
   const [isFastEntryOpen, setIsFastEntryOpen] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
-  const [isOnboardingOpen, setIsOnboardingOpen] = useState(() => !dataState.user?.hasCompletedOnboarding);
+  const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(() => {
     return document.documentElement.classList.contains('dark') || window.matchMedia('(prefers-color-scheme: dark)').matches;
   });
@@ -117,18 +120,34 @@ export function AppShell() {
   const handleGoogleLogin = (googleUserData: Partial<UserProfile>) => {
     const updatedUser: UserProfile = {
       id: googleUserData.id || `usr-${Date.now()}`,
+      googleId: googleUserData.googleId,
       email: googleUserData.email || '',
       name: googleUserData.name || 'Usuario Google',
       picture: googleUserData.picture,
       purpose: dataState.user?.purpose || 'controlar',
       useCase: dataState.user?.useCase || 'personal',
-      hasCompletedOnboarding: true,
+      hasCompletedOnboarding: dataState.user?.hasCompletedOnboarding || false,
     };
 
     setDataState((prev) => ({
       ...prev,
       user: updatedUser,
     }));
+    setIsAuthenticated(true);
+
+    // If new user who hasn't completed onboarding yet, open the secondary onboarding wizard!
+    if (!updatedUser.hasCompletedOnboarding) {
+      setIsOnboardingOpen(true);
+    }
+  };
+
+  // Logout Handler
+  const handleLogout = () => {
+    setDataState((prev) => ({
+      ...prev,
+      user: null,
+    }));
+    setIsAuthenticated(false);
   };
 
   // Switch Workspace Handler
@@ -307,6 +326,16 @@ export function AppShell() {
     { id: 'forecast', label: 'Gastos Fijos & Proyección', icon: CalendarDays },
     { id: 'history', label: 'Historial & Exportación', icon: History },
   ] as const;
+
+  // Dedicated Login Screen as the Primary Entry Point
+  if (!isAuthenticated) {
+    return (
+      <LoginScreen
+        onGoogleLogin={handleGoogleLogin}
+        onEnterAsGuest={() => setIsAuthenticated(true)}
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background text-foreground md:flex">
@@ -586,9 +615,7 @@ export function AppShell() {
         onClose={() => setIsAuthModalOpen(false)}
         user={dataState.user}
         onGoogleLogin={handleGoogleLogin}
-        onLogout={() => {
-          setDataState((prev) => ({ ...prev, user: null }));
-        }}
+        onLogout={handleLogout}
       />
 
       <Toaster />
