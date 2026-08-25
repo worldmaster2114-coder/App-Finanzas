@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { UserProfile } from '@/types/finance';
-import { LogIn, LogOut, ShieldCheck, User as UserIcon, Sparkles, CheckCircle2, X, AlertCircle } from 'lucide-react';
+import { LogIn, LogOut, ShieldCheck, ShieldAlert, User as UserIcon, Sparkles, CheckCircle2, X, AlertCircle } from 'lucide-react';
 
 type AuthModalProps = {
   isOpen: boolean;
@@ -8,6 +8,7 @@ type AuthModalProps = {
   user: UserProfile | null;
   onGoogleLogin: (user: Partial<UserProfile>) => void;
   onLogout: () => void;
+  onOpenAdminPanel?: () => void;
 };
 
 // Helper to decode Google JWT token
@@ -29,11 +30,16 @@ function parseJwt(token: string) {
 
 const DEFAULT_GOOGLE_CLIENT_ID = '1040799510505-bj3p40579m6h29aq7nac9rqmkvh35829.apps.googleusercontent.com';
 
-export function AuthModal({ isOpen, onClose, user, onGoogleLogin, onLogout }: AuthModalProps) {
+export function AuthModal({ isOpen, onClose, user, onGoogleLogin, onLogout, onOpenAdminPanel }: AuthModalProps) {
   const [loading, setLoading] = useState(false);
   const googleBtnRef = useRef<HTMLDivElement>(null);
 
   const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || DEFAULT_GOOGLE_CLIENT_ID;
+
+  const isSuperAdmin = user?.email && [
+    'worldmaster2114@gmail.com',
+    'admin@grupowalnut.com',
+  ].includes(user.email.toLowerCase().trim());
 
   // Initialize Google Identity Services
   useEffect(() => {
@@ -129,6 +135,18 @@ export function AuthModal({ isOpen, onClose, user, onGoogleLogin, onLogout }: Au
                   <span className="font-bold capitalize text-foreground">{user.useCase === 'shared' ? 'Compartido (Hogar)' : 'Personal'}</span>
                 </div>
               </div>
+
+              {isSuperAdmin && onOpenAdminPanel && (
+                <button
+                  onClick={() => {
+                    onClose();
+                    onOpenAdminPanel();
+                  }}
+                  className="flex w-full items-center justify-center gap-2 rounded-xl border border-amber-500/40 bg-amber-500/15 py-2.5 text-xs font-bold text-amber-500 hover:bg-amber-500/25 transition shadow-xs"
+                >
+                  <ShieldAlert size={16} /> Abrir Panel Super Admin & Soporte
+                </button>
+              )}
 
               <button
                 onClick={() => {

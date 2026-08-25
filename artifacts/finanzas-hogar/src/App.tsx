@@ -343,6 +343,11 @@ export function AppShell() {
     );
   }
 
+  const isSuperAdmin = dataState.user?.email && [
+    'worldmaster2114@gmail.com',
+    'admin@grupowalnut.com',
+  ].includes(dataState.user.email.toLowerCase().trim());
+
   return (
     <div className="min-h-screen bg-background text-foreground md:flex">
       {/* Desktop Sidebar Navigation */}
@@ -375,31 +380,38 @@ export function AppShell() {
         </div>
 
         {/* User Profile Card / Auth Button */}
-        <div className="mt-5 rounded-2xl border border-sidebar-border bg-sidebar-accent/50 p-3">
+        <div className={`mt-5 rounded-2xl border ${isSuperAdmin ? 'border-amber-500/40 bg-amber-500/10' : 'border-sidebar-border bg-sidebar-accent/50'} p-3`}>
           <div className="flex items-center justify-between">
             <button
               onClick={() => setIsAuthModalOpen(true)}
               className="flex items-center gap-2 text-left min-w-0 flex-1 hover:opacity-80 transition"
             >
               {dataState.user?.picture ? (
-                <img src={dataState.user.picture} alt={dataState.user.name} className="h-8 w-8 rounded-full border border-sidebar-primary" />
+                <img src={dataState.user.picture} alt={dataState.user.name} className={`h-9 w-9 rounded-full border-2 ${isSuperAdmin ? 'border-amber-500 shadow-xs' : 'border-sidebar-primary'}`} />
               ) : (
-                <span className="grid h-8 w-8 place-items-center rounded-full bg-sidebar-primary/20 text-sidebar-primary text-xs font-extrabold">
+                <span className={`grid h-9 w-9 place-items-center rounded-full ${isSuperAdmin ? 'bg-amber-500/20 text-amber-500' : 'bg-sidebar-primary/20 text-sidebar-primary'} text-xs font-extrabold`}>
                   {dataState.user?.name ? dataState.user.name.charAt(0).toUpperCase() : <UserIcon size={16} />}
                 </span>
               )}
               <div className="min-w-0 flex-1">
-                <p className="text-xs font-bold truncate text-sidebar-foreground">{dataState.user?.name || 'Invitado'}</p>
+                <div className="flex items-center gap-1.5">
+                  <p className="text-xs font-bold truncate text-sidebar-foreground">{dataState.user?.name || 'Invitado'}</p>
+                  {isSuperAdmin && (
+                    <span className="rounded-md bg-amber-500/20 border border-amber-500/40 px-1.5 py-0.2 text-[8px] font-extrabold uppercase text-amber-500">
+                      ADMIN
+                    </span>
+                  )}
+                </div>
                 <p className="text-[10px] text-sidebar-foreground/60 truncate">{dataState.user?.email || 'Clic para conectar Google'}</p>
               </div>
             </button>
 
             <button
-              onClick={() => setIsAuthModalOpen(true)}
-              className="grid h-7 w-7 place-items-center rounded-lg bg-sidebar-accent text-sidebar-foreground/70 hover:text-sidebar-foreground"
-              title="Ajustes de cuenta"
+              onClick={() => isSuperAdmin ? setIsAdminPanelOpen(true) : setIsAuthModalOpen(true)}
+              className={`grid h-7 w-7 place-items-center rounded-lg ${isSuperAdmin ? 'bg-amber-500 text-black hover:bg-amber-400' : 'bg-sidebar-accent text-sidebar-foreground/70 hover:text-sidebar-foreground'} transition`}
+              title={isSuperAdmin ? "Panel Super Admin" : "Ajustes de cuenta"}
             >
-              <LogIn size={14} />
+              {isSuperAdmin ? <ShieldAlert size={15} /> : <LogIn size={14} />}
             </button>
           </div>
 
@@ -645,6 +657,7 @@ export function AppShell() {
         user={dataState.user}
         onGoogleLogin={handleGoogleLogin}
         onLogout={handleLogout}
+        onOpenAdminPanel={() => setIsAdminPanelOpen(true)}
       />
 
       {/* Super Admin & Support Panel */}
