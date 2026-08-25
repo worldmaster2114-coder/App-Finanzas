@@ -83,19 +83,25 @@ export function AuthModal({ isOpen, onClose, user, onGoogleLogin, onLogout, onOp
 
   if (!isOpen) return null;
 
-  // Direct Simulated/Fast Login
-  const handleFastLogin = () => {
+  const [authMode, setAuthMode] = useState<'google' | 'email'>('google');
+  const [emailInput, setEmailInput] = useState('');
+  const [nameInput, setNameInput] = useState('');
+
+  const handleEmailSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!emailInput.trim()) return;
+
     setLoading(true);
-    setTimeout(() => {
-      onGoogleLogin({
-        id: `usr-${Date.now()}`,
-        email: 'usuario.demo@grupowalnut.com',
-        name: 'Usuario Google',
-        picture: 'https://lh3.googleusercontent.com/a/default-user',
-      });
-      setLoading(false);
-      onClose();
-    }, 400);
+    const cleanEmail = emailInput.trim().toLowerCase();
+    const cleanName = nameInput.trim() || cleanEmail.split('@')[0];
+
+    onGoogleLogin({
+      id: `usr-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      email: cleanEmail,
+      name: cleanName,
+    });
+    setLoading(false);
+    onClose();
   };
 
   return (
@@ -164,31 +170,55 @@ export function AuthModal({ isOpen, onClose, user, onGoogleLogin, onLogout, onOp
                 <span className="grid h-12 w-12 mx-auto place-items-center rounded-2xl bg-primary/15 text-primary">
                   <ShieldCheck size={24} />
                 </span>
-                <h4 className="font-bold text-base text-foreground">Iniciar Sesión con Google</h4>
+                <h4 className="font-bold text-base text-foreground">Acceso de Usuario</h4>
                 <p className="text-xs text-muted-foreground leading-relaxed">
-                  Sincroniza tus datos de la regla 50-30-20 en la nube de forma segura y comparte tu presupuesto con tu hogar.
+                  Ingresa para sincronizar tus finanzas de forma segura en la nube.
                 </p>
               </div>
 
               {/* Official Google GIS Button Target */}
               <div ref={googleBtnRef} className="flex justify-center min-h-[44px]"></div>
 
-              {/* Fallback One-Click Google Button */}
-              <button
-                onClick={handleFastLogin}
-                disabled={loading}
-                className="flex h-12 w-full items-center justify-center gap-3 rounded-2xl border border-border bg-card shadow-xs transition hover:bg-secondary hover:shadow-md active:scale-98"
-              >
-                <svg className="h-5 w-5" viewBox="0 0 24 24">
-                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
-                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
-                </svg>
-                <span className="text-xs font-bold text-foreground">
-                  {loading ? 'Conectando con Google...' : 'Acceder con Cuenta Google'}
-                </span>
-              </button>
+              {authMode === 'email' ? (
+                <form onSubmit={handleEmailSubmit} className="space-y-3 text-left animate-in fade-in-50">
+                  <div>
+                    <label className="text-xs font-bold text-foreground">Tu Nombre</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Ej. María Pérez"
+                      value={nameInput}
+                      onChange={(e) => setNameInput(e.target.value)}
+                      className="mt-1 h-10 w-full rounded-xl border border-input bg-background px-3 text-xs outline-none focus:border-primary"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-foreground">Correo Electrónico</label>
+                    <input
+                      type="email"
+                      required
+                      placeholder="correo@ejemplo.com"
+                      value={emailInput}
+                      onChange={(e) => setEmailInput(e.target.value)}
+                      className="mt-1 h-10 w-full rounded-xl border border-input bg-background px-3 text-xs outline-none focus:border-primary"
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    className="h-10 w-full rounded-xl bg-primary text-xs font-bold text-primary-foreground shadow-xs hover:brightness-105"
+                  >
+                    Ingresar con Correo
+                  </button>
+                </form>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setAuthMode('email')}
+                  className="flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-border bg-secondary text-xs font-bold text-foreground hover:bg-secondary/80"
+                >
+                  Continuar con Correo
+                </button>
+              )}
 
               <p className="text-[10px] text-muted-foreground">
                 Protegido por Google OAuth 2.0 • Grupo Walnut
