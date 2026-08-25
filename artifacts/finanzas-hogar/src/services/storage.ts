@@ -102,12 +102,27 @@ export function loadFinanceData(): FinanceDataState {
   return initial;
 }
 
+// Background Debounced Sync to PostgreSQL Backend
+let syncTimeout: any = null;
+
 export function saveFinanceData(data: FinanceDataState): void {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
   } catch (err) {
     console.error('Failed to save to localStorage:', err);
   }
+
+  // Sync to PostgreSQL Backend API
+  if (syncTimeout) clearTimeout(syncTimeout);
+  syncTimeout = setTimeout(() => {
+    fetch('/api/finance/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    }).catch((err) => {
+      console.warn('[SYNC] PostgreSQL sync in progress or offline:', err);
+    });
+  }, 1000);
 }
 
 export function exportToJSON(data: FinanceDataState): void {
