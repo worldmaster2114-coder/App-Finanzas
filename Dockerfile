@@ -24,14 +24,15 @@ COPY . .
 # ── 3. Build frontend (Vite → dist/public) ─────────────────────────────────
 RUN pnpm --filter @workspace/finanzas-hogar run build
 
-# ── 4. Build backend (esbuild → dist/index.mjs) ────────────────────────────
+# ── 4. Build backend (esbuild → dist/index.mjs, no pino workers) ───────────
 RUN pnpm --filter @workspace/api-server run build
 
-# ── 5. Runtime ─────────────────────────────────────────────────────────────
+# ── 5. Runtime config ──────────────────────────────────────────────────────
 ENV NODE_ENV=production
 ENV PORT=5000
 ENV FRONTEND_DIST=/app/artifacts/finanzas-hogar/dist/public
 
 EXPOSE 5000
 
+# Use node_modules pino directly since it's externalized from the bundle
 CMD ["node", "artifacts/api-server/dist/index.mjs"]
