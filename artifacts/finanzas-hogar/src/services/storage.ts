@@ -52,19 +52,38 @@ export function getInitialSeedData(): FinanceDataState {
 }
 
 export function loadFinanceData(): FinanceDataState {
+  const initial = getInitialSeedData();
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
-      const parsed = JSON.parse(raw) as FinanceDataState;
-      if (parsed && Array.isArray(parsed.accounts) && Array.isArray(parsed.transactions)) {
-        return parsed;
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') {
+        const safeWorkspaces = Array.isArray(parsed.workspaces) && parsed.workspaces.length > 0 ? parsed.workspaces : initial.workspaces;
+        const safeActiveWorkspace = parsed.activeWorkspace || safeWorkspaces[0] || initial.activeWorkspace;
+        const safeAccounts = Array.isArray(parsed.accounts) && parsed.accounts.length > 0 ? parsed.accounts : initial.accounts;
+        const safeCategories = Array.isArray(parsed.categories) && parsed.categories.length > 0 ? parsed.categories : initial.categories;
+        const safeTransactions = Array.isArray(parsed.transactions) ? parsed.transactions : [];
+        const safeBudgets = Array.isArray(parsed.budgets) ? parsed.budgets : [];
+        const safeSavingsGoals = Array.isArray(parsed.savingsGoals) ? parsed.savingsGoals : [];
+        const safeRecurring = Array.isArray(parsed.recurringTransactions) ? parsed.recurringTransactions : [];
+
+        return {
+          user: parsed.user || null,
+          workspaces: safeWorkspaces,
+          activeWorkspace: safeActiveWorkspace,
+          accounts: safeAccounts,
+          categories: safeCategories,
+          transactions: safeTransactions,
+          budgets: safeBudgets,
+          savingsGoals: safeSavingsGoals,
+          recurringTransactions: safeRecurring,
+        };
       }
     }
   } catch (err) {
     console.error('Failed to parse storage, initializing clean data:', err);
   }
 
-  const initial = getInitialSeedData();
   saveFinanceData(initial);
   return initial;
 }

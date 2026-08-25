@@ -36,29 +36,42 @@ function toError(value: unknown): Error {
 }
 
 function DefaultFallback({ error, resetError }: ErrorFallbackProps) {
+  const handleResetAndReload = () => {
+    try {
+      localStorage.clear();
+      sessionStorage.clear();
+    } catch (e) {}
+    window.location.href = window.location.origin;
+  };
+
   return (
-    <div className="min-h-screen w-full flex items-center justify-center bg-gray-50 p-6">
-      <div className="max-w-lg w-full text-center">
-        <h1 className="text-xl font-semibold text-gray-900">
-          Something went wrong
+    <div className="min-h-screen w-full flex items-center justify-center bg-background text-foreground p-6">
+      <div className="max-w-md w-full text-center space-y-4 rounded-3xl border border-border bg-card p-8 shadow-xl">
+        <div className="inline-flex items-center gap-2 rounded-full bg-primary/15 px-3 py-1 text-xs font-bold text-primary">
+          50-30-20 • Grupo Walnut
+        </div>
+        <h1 className="text-xl font-serif font-bold text-foreground">
+          Recuperación del Sistema
         </h1>
-        <p className="mt-2 text-sm text-gray-600">
-          This part of the app hit an error. The rest of the app is still
-          running.
+        <p className="text-xs text-muted-foreground leading-relaxed">
+          Ocurrió un inconveniente temporal al cargar la información en pantalla.
         </p>
-        {/* Dev only: messages can carry API responses and other internals. */}
-        {import.meta.env.DEV ? (
-          <pre className="mt-4 overflow-x-auto rounded bg-gray-100 p-3 text-left text-xs text-gray-800">
-            {error.message || String(error)}
-          </pre>
-        ) : null}
-        <button
-          type="button"
-          onClick={resetError}
-          className="mt-4 rounded bg-gray-900 px-4 py-2 text-sm text-white hover:bg-gray-700"
-        >
-          Try again
-        </button>
+        <div className="flex flex-col gap-2 pt-2">
+          <button
+            type="button"
+            onClick={resetError}
+            className="h-11 w-full rounded-2xl bg-primary px-4 text-xs font-bold text-primary-foreground shadow-md hover:brightness-105 transition"
+          >
+            Reintentar Carga
+          </button>
+          <button
+            type="button"
+            onClick={handleResetAndReload}
+            className="h-11 w-full rounded-2xl border border-border bg-secondary px-4 text-xs font-bold text-foreground hover:bg-secondary/80 transition"
+          >
+            Limpiar Caché y Restaurar
+          </button>
+        </div>
       </div>
     </div>
   );
