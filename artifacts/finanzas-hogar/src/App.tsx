@@ -322,7 +322,7 @@ export function AppShell() {
               <div className="flex items-center gap-1.5">
                 <span className="block font-serif text-xl font-bold leading-tight">50-30-20</span>
                 <span className="rounded-md bg-sidebar-primary/20 px-1.5 py-0.5 text-[9px] font-extrabold uppercase tracking-wider text-sidebar-primary">
-                  Grupo Walnut
+                  Grupo Walnut v2.1
                 </span>
               </div>
               <span className="block text-[10px] font-bold uppercase tracking-widest text-sidebar-foreground/60">
@@ -433,7 +433,7 @@ export function AppShell() {
           </span>
           <span>50-30-20</span>
           <span className="rounded-md bg-primary/10 px-1.5 py-0.5 text-[9px] font-extrabold uppercase tracking-wider text-primary">
-            Grupo Walnut
+            Grupo Walnut v2.1
           </span>
         </div>
         <button
