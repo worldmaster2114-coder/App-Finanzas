@@ -574,6 +574,9 @@ export function AppShell() {
       <OnboardingWizard
         isOpen={isOnboardingOpen}
         initialUser={dataState.user}
+        onOpenGoogleLogin={() => {
+          setIsAuthModalOpen(true);
+        }}
         onComplete={handleOnboardingComplete}
       />
 
