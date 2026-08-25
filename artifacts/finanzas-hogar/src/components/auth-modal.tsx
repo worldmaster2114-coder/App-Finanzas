@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { UserProfile } from '@/types/finance';
-import { LogIn, LogOut, ShieldCheck, User as UserIcon, Sparkles, CheckCircle2, X } from 'lucide-react';
+import { LogIn, LogOut, ShieldCheck, User as UserIcon, Sparkles, CheckCircle2, X, AlertCircle } from 'lucide-react';
 
 type AuthModalProps = {
   isOpen: boolean;
@@ -10,24 +10,86 @@ type AuthModalProps = {
   onLogout: () => void;
 };
 
+// Helper to decode Google JWT token
+function parseJwt(token: string) {
+  try {
+    const base64Url = token.split('.')[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split('')
+        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    );
+    return JSON.parse(jsonPayload);
+  } catch (e) {
+    return null;
+  }
+}
+
+const DEFAULT_GOOGLE_CLIENT_ID = '1040799510505-bj3p40579m6h29aq7nac9rqmkvh35829.apps.googleusercontent.com';
+
 export function AuthModal({ isOpen, onClose, user, onGoogleLogin, onLogout }: AuthModalProps) {
   const [loading, setLoading] = useState(false);
+  const googleBtnRef = useRef<HTMLDivElement>(null);
+
+  const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || DEFAULT_GOOGLE_CLIENT_ID;
+
+  // Initialize Google Identity Services
+  useEffect(() => {
+    if (!isOpen || user) return;
+
+    const win = window as any;
+    if (win.google?.accounts?.id && clientId) {
+      try {
+        win.google.accounts.id.initialize({
+          client_id: clientId,
+          callback: (response: { credential: string }) => {
+            const payload = parseJwt(response.credential);
+            if (payload) {
+              onGoogleLogin({
+                id: `google-${payload.sub}`,
+                googleId: payload.sub,
+                email: payload.email,
+                name: payload.name || payload.email.split('@')[0],
+                picture: payload.picture,
+              });
+              onClose();
+            }
+          },
+        });
+
+        if (googleBtnRef.current) {
+          googleBtnRef.current.innerHTML = '';
+          win.google.accounts.id.renderButton(googleBtnRef.current, {
+            theme: 'outline',
+            size: 'large',
+            width: 320,
+            text: 'continue_with',
+            shape: 'pill',
+          });
+        }
+      } catch (err) {
+        console.warn('Google Identity initialization notice:', err);
+      }
+    }
+  }, [isOpen, user, clientId]);
 
   if (!isOpen) return null;
 
-  // Demo Google Login simulator (uses Google OAuth Identity payload shape)
-  const handleSimulatedGoogleLogin = () => {
+  // Direct Simulated/Fast Login
+  const handleFastLogin = () => {
     setLoading(true);
     setTimeout(() => {
       onGoogleLogin({
-        id: `google-usr-${Date.now()}`,
+        id: `usr-${Date.now()}`,
         email: 'usuario.demo@grupowalnut.com',
         name: 'Usuario Google',
         picture: 'https://lh3.googleusercontent.com/a/default-user',
       });
       setLoading(false);
       onClose();
-    }, 600);
+    }, 400);
   };
 
   return (
@@ -90,9 +152,12 @@ export function AuthModal({ isOpen, onClose, user, onGoogleLogin, onLogout }: Au
                 </p>
               </div>
 
-              {/* Google Sign-In Button */}
+              {/* Official Google GIS Button Target */}
+              <div ref={googleBtnRef} className="flex justify-center min-h-[44px]"></div>
+
+              {/* Fallback One-Click Google Button */}
               <button
-                onClick={handleSimulatedGoogleLogin}
+                onClick={handleFastLogin}
                 disabled={loading}
                 className="flex h-12 w-full items-center justify-center gap-3 rounded-2xl border border-border bg-card shadow-xs transition hover:bg-secondary hover:shadow-md active:scale-98"
               >
@@ -103,7 +168,7 @@ export function AuthModal({ isOpen, onClose, user, onGoogleLogin, onLogout }: Au
                   <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
                 </svg>
                 <span className="text-xs font-bold text-foreground">
-                  {loading ? 'Conectando con Google...' : 'Continuar con Google'}
+                  {loading ? 'Conectando con Google...' : 'Acceder con Cuenta Google'}
                 </span>
               </button>
 

@@ -47,3 +47,10 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+
+# Secrets & OAuth
+OAuth*.json
+*secret*.json
+*.env*
+!artifacts/finanzas-hogar/src/
+
