@@ -1,10 +1,7 @@
 .git
 .gitignore
 .dockerignore
-node_modules
-dist
 artifacts/finanzas-hogar/android
-artifacts/finanzas-hogar/dist
 50-30-20-Finanzas.apk
 .gemini
 .system_generated

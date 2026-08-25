@@ -33,21 +33,21 @@ import path from "path";
 
 app.use("/api", router);
 
-// Serve static frontend assets from finanzas-hogar
-const staticPath = path.resolve(__dirname, "../../finanzas-hogar/dist/public");
+// Serve static frontend assets
+// In Docker: FRONTEND_DIST=/app/artifacts/finanzas-hogar/dist/public (absolute)
+// In local dev: relative fallback
+const staticPath = process.env["FRONTEND_DIST"] ||
+  path.resolve(__dirname, "../../../artifacts/finanzas-hogar/dist/public");
+
 app.use(express.static(staticPath));
 
 // SPA Fallback for client-side routing
-app.get("*", (req, res, next) => {
-  if (req.path.startsWith("/api")) {
-    return next();
-  }
+app.get("*", (_req, res, next) => {
   res.sendFile(path.join(staticPath, "index.html"), (err) => {
-    if (err) {
-      next();
-    }
+    if (err) next();
   });
 });
 
 export default app;
+
 
