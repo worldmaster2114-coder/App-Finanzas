@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Account, Category, Transaction } from '@/types/finance';
 import { CategoryIcon } from './fast-entry-modal';
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
-import { ArrowDownLeft, ArrowUpRight, Wallet, TrendingUp, CircleDollarSign, CalendarDays } from 'lucide-react';
+import { ArrowDownLeft, ArrowUpRight, Wallet, TrendingUp, CircleDollarSign, CalendarDays, Share2, Users } from 'lucide-react';
 
 type DashboardAnalyticsProps = {
   accounts: Account[];
@@ -12,6 +12,7 @@ type DashboardAnalyticsProps = {
   selectedYear: number;
   onMonthChange: (month: number) => void;
   onYearChange: (year: number) => void;
+  onOpenShareHousehold?: () => void;
 };
 
 const formatMoney = (amount: number) =>
@@ -30,6 +31,7 @@ export function DashboardAnalytics({
   selectedYear,
   onMonthChange,
   onYearChange,
+  onOpenShareHousehold,
 }: DashboardAnalyticsProps) {
   const [activePieIndex, setActivePieIndex] = useState<number | undefined>();
 
@@ -153,27 +155,38 @@ export function DashboardAnalytics({
           <p className="text-xs text-muted-foreground">Monitorea tu balance consolidado, flujo de caja y distribución de gastos.</p>
         </div>
 
-        <div className="flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-1.5 shadow-xs">
-          <CalendarDays size={16} className="text-primary" />
-          <select
-            value={selectedMonth}
-            onChange={(e) => onMonthChange(Number(e.target.value))}
-            className="bg-transparent text-xs font-bold text-foreground outline-none cursor-pointer"
-          >
-            {monthNames.map((m, idx) => (
-              <option key={m} value={idx}>{m}</option>
-            ))}
-          </select>
-          <span className="h-4 w-px bg-border" />
-          <select
-            value={selectedYear}
-            onChange={(e) => onYearChange(Number(e.target.value))}
-            className="bg-transparent text-xs font-bold text-foreground outline-none cursor-pointer"
-          >
-            {yearsList.map((y) => (
-              <option key={y} value={y}>{y}</option>
-            ))}
-          </select>
+        <div className="flex items-center gap-2.5 flex-wrap">
+          {onOpenShareHousehold && (
+            <button
+              onClick={onOpenShareHousehold}
+              className="flex items-center gap-1.5 rounded-xl border border-purple-500/40 bg-purple-500/15 px-3 py-1.5 text-xs font-bold text-purple-400 hover:bg-purple-500/25 transition shadow-xs"
+            >
+              <Share2 size={14} /> Compartir Hogar
+            </button>
+          )}
+
+          <div className="flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-1.5 shadow-xs">
+            <CalendarDays size={16} className="text-primary" />
+            <select
+              value={selectedMonth}
+              onChange={(e) => onMonthChange(Number(e.target.value))}
+              className="bg-transparent text-xs font-bold text-foreground outline-none cursor-pointer"
+            >
+              {monthNames.map((m, idx) => (
+                <option key={m} value={idx}>{m}</option>
+              ))}
+            </select>
+            <span className="h-4 w-px bg-border" />
+            <select
+              value={selectedYear}
+              onChange={(e) => onYearChange(Number(e.target.value))}
+              className="bg-transparent text-xs font-bold text-foreground outline-none cursor-pointer"
+            >
+              {yearsList.map((y) => (
+                <option key={y} value={y}>{y}</option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
 

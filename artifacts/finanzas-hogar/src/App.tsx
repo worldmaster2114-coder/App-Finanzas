@@ -16,6 +16,7 @@ import { LoginScreen } from '@/components/login-screen';
 import { AdminSupportPanel } from '@/components/admin-support-panel';
 import { SupportTicketModal } from '@/components/support-ticket-modal';
 import { JoinRequestBanner } from '@/components/join-request-banner';
+import { ShareHouseholdModal } from '@/components/share-household-modal';
 import { UserAvatar } from '@/components/user-avatar';
 import { loadFinanceData, saveFinanceData } from '@/services/storage';
 import { Budget, FinanceDataState, RecurringTransaction, SavingsGoal, Transaction, UserProfile, UserPurpose, UserUseCase, Workspace } from '@/types/finance';
@@ -38,6 +39,7 @@ import {
   LogOut,
   KeyRound,
   Users,
+  Share2,
   ShieldAlert,
   HelpCircle,
 } from 'lucide-react';
@@ -53,6 +55,7 @@ export function AppShell() {
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
   const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(false);
   const [isSupportTicketModalOpen, setIsSupportTicketModalOpen] = useState(false);
+  const [isShareHouseholdOpen, setIsShareHouseholdOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(() => {
     return document.documentElement.classList.contains('dark') || window.matchMedia('(prefers-color-scheme: dark)').matches;
   });
@@ -233,6 +236,32 @@ export function AppShell() {
       workspaces: [...prev.workspaces, joinedWs],
       activeWorkspace: joinedWs,
     }));
+  };
+
+  // Ensure Shared Invite Code
+  const handleEnsureSharedCode = (): string => {
+    if (activeWorkspace?.inviteCode) return activeWorkspace.inviteCode;
+    const code = Math.random().toString(36).substring(2, 8).toUpperCase();
+    setDataState((prev) => {
+      const activeId = prev.activeWorkspace?.id || 'ws-default';
+      const updatedWorkspaces: Workspace[] = prev.workspaces.map((w) =>
+        w.id === activeId ? { ...w, inviteCode: code, type: 'shared' as const } : w
+      );
+      const targetWs: Workspace = updatedWorkspaces.find((w) => w.id === activeId) || {
+        id: activeId,
+        name: prev.activeWorkspace?.name || 'Mi Hogar Compartido',
+        type: 'shared' as const,
+        inviteCode: code,
+        ownerId: prev.user?.id || 'default-owner',
+        membersCount: 1,
+      };
+      return {
+        ...prev,
+        workspaces: updatedWorkspaces,
+        activeWorkspace: targetWs,
+      };
+    });
+    return code;
   };
 
   // Fast Entry Save Handler
@@ -534,19 +563,28 @@ export function AppShell() {
           </span>
           <span>50-30-20</span>
           <span className="rounded-md bg-primary/10 px-1.5 py-0.5 text-[9px] font-extrabold uppercase tracking-wider text-primary">
-            Grupo Walnut v2.1
+            Grupo Walnut
           </span>
         </div>
-        <button
-          onClick={() => setIsAuthModalOpen(true)}
-          className="p-1 text-foreground"
-        >
-          {dataState.user ? (
-            <UserAvatar picture={dataState.user.picture} name={dataState.user.name} size="xs" isSuperAdmin={isSuperAdmin} />
-          ) : (
-            <LogIn size={20} />
-          )}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setIsShareHouseholdOpen(true)}
+            className="flex items-center gap-1 rounded-xl border border-purple-500/40 bg-purple-500/15 px-2.5 py-1 text-xs font-bold text-purple-400 hover:bg-purple-500/25 transition shadow-xs"
+            title="Compartir Hogar mediante Enlace"
+          >
+            <Share2 size={13} /> Compartir
+          </button>
+          <button
+            onClick={() => setIsAuthModalOpen(true)}
+            className="p-1 text-foreground"
+          >
+            {dataState.user ? (
+              <UserAvatar picture={dataState.user.picture} name={dataState.user.name} size="xs" isSuperAdmin={isSuperAdmin} />
+            ) : (
+              <LogIn size={20} />
+            )}
+          </button>
+        </div>
       </header>
 
       {/* Mobile Menu Drawer */}
@@ -557,17 +595,16 @@ export function AppShell() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between pb-4 border-b border-sidebar-border">
-              <div>
-                <span className="font-serif text-xl font-bold block">50-30-20</span>
-                <span className="text-[10px] font-extrabold uppercase tracking-wider text-sidebar-primary">
-                  Una app de Grupo Walnut
-                </span>
+              <div className="flex items-center gap-2 font-serif font-bold">
+                <Wallet size={18} className="text-primary" />
+                <span>50-30-20</span>
               </div>
-              <button onClick={() => setMobileMenuOpen(false)} className="p-1">
+              <button onClick={() => setMobileMenuOpen(false)} className="text-sidebar-foreground/70">
                 <X size={20} />
               </button>
             </div>
-            <div className="mt-6 space-y-1">
+
+            <div className="mt-4 space-y-1">
               {navItems.map((item) => {
                 const Icon = item.icon;
                 const isActive = activeTab === item.id;
@@ -578,11 +615,11 @@ export function AppShell() {
                       setActiveTab(item.id);
                       setMobileMenuOpen(false);
                     }}
-                    className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-xs font-semibold ${
-                      isActive ? 'bg-sidebar-accent text-sidebar-accent-foreground font-bold' : 'text-sidebar-foreground/70'
+                    className={`flex w-full items-center gap-3 rounded-xl px-3.5 py-2.5 text-xs font-bold transition ${
+                      isActive ? 'bg-sidebar-primary text-sidebar-primary-foreground shadow-xs' : 'text-sidebar-foreground hover:bg-sidebar-accent'
                     }`}
                   >
-                    <Icon size={18} />
+                    <Icon size={16} />
                     {item.label}
                   </button>
                 );
@@ -612,6 +649,7 @@ export function AppShell() {
             selectedYear={selectedYear}
             onMonthChange={setSelectedMonth}
             onYearChange={setSelectedYear}
+            onOpenShareHousehold={() => setIsShareHouseholdOpen(true)}
           />
         )}
 
@@ -711,6 +749,15 @@ export function AppShell() {
         isOpen={isSupportTicketModalOpen}
         onClose={() => setIsSupportTicketModalOpen(false)}
         user={dataState.user}
+      />
+
+      {/* Share Household Modal */}
+      <ShareHouseholdModal
+        isOpen={isShareHouseholdOpen}
+        onClose={() => setIsShareHouseholdOpen(false)}
+        workspace={activeWorkspace}
+        currentUser={dataState.user}
+        onEnsureSharedCode={handleEnsureSharedCode}
       />
 
       <Toaster />
