@@ -467,6 +467,33 @@ export function AppShell() {
     syncFinanceDataToCloud(nextState, true);
   };
 
+  // Update Budget Handler
+  const handleUpdateBudget = (budget: Budget) => {
+    const updatedBudgets = dataState.budgets.map((b) => (b.id === budget.id ? budget : b));
+    const nextState = {
+      ...dataState,
+      budgets: updatedBudgets,
+    };
+    setDataState(nextState);
+    syncFinanceDataToCloud(nextState, true);
+  };
+
+  // Delete Budget Handler
+  const handleDeleteBudget = (budgetId: string) => {
+    fetch('/api/finance/budget/delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: budgetId }),
+    }).catch(console.warn);
+
+    const nextState = {
+      ...dataState,
+      budgets: dataState.budgets.filter((b) => b.id !== budgetId),
+    };
+    setDataState(nextState);
+    syncFinanceDataToCloud(nextState, true);
+  };
+
   // Add Recurring Transaction Handler
   const handleAddRecurring = (recData: Omit<RecurringTransaction, 'id'>) => {
     const newRec: RecurringTransaction = {
@@ -820,6 +847,8 @@ export function AppShell() {
             selectedMonth={selectedMonth}
             selectedYear={selectedYear}
             onAddBudget={handleAddBudget}
+            onUpdateBudget={handleUpdateBudget}
+            onDeleteBudget={handleDeleteBudget}
           />
         )}
 

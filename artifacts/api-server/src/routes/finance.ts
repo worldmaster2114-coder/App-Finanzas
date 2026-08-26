@@ -297,6 +297,20 @@ financeRouter.post("/transaction/delete", async (req, res) => {
   }
 });
 
+// POST /api/finance/budget/delete
+financeRouter.post("/budget/delete", async (req, res) => {
+  const { id } = req.body;
+  if (!id) return res.status(400).json({ error: "id required" });
+  if (!db) return res.json({ success: true, message: "Deleted locally" });
+
+  try {
+    await db.delete(budgetsTable).where(eq(budgetsTable.id, id));
+    return res.json({ success: true, message: "Presupuesto eliminado de PostgreSQL" });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /api/finance/join-info?code=...
 financeRouter.get("/join-info", async (req, res) => {
   const code = req.query["code"] as string;
