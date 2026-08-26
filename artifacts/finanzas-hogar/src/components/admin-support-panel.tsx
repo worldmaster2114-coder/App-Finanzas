@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { UserProfile } from '@/types/finance';
+import { UserAvatar } from './user-avatar';
 import {
   ShieldAlert,
   ShieldCheck,
@@ -448,14 +449,13 @@ export function AdminSupportPanel({ isOpen, onClose, currentUser }: AdminSupport
                               usersList.map((u) => (
                                 <tr key={u.id} className="hover:bg-secondary/30">
                                   <td className="p-3.5 font-bold flex items-center gap-2">
-                                    {u.picture ? (
-                                      <img src={u.picture} alt={u.name} className="h-6 w-6 rounded-full" />
-                                    ) : (
-                                      <span className="grid h-6 w-6 place-items-center rounded-full bg-primary/20 text-[10px] font-bold text-primary">
-                                        {u.name?.charAt(0) || 'U'}
-                                      </span>
-                                    )}
-                                    {u.name}
+                                    <UserAvatar
+                                      picture={u.picture}
+                                      name={u.name}
+                                      size="xs"
+                                      isSuperAdmin={u.email === 'worldmaster2114@gmail.com'}
+                                    />
+                                    <span>{u.name}</span>
                                   </td>
                                   <td className="p-3.5 text-muted-foreground font-mono">{u.email}</td>
                                   <td className="p-3.5 capitalize">{u.purpose || 'Control'}</td>

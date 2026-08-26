@@ -16,6 +16,7 @@ import { LoginScreen } from '@/components/login-screen';
 import { AdminSupportPanel } from '@/components/admin-support-panel';
 import { SupportTicketModal } from '@/components/support-ticket-modal';
 import { JoinRequestBanner } from '@/components/join-request-banner';
+import { UserAvatar } from '@/components/user-avatar';
 import { loadFinanceData, saveFinanceData } from '@/services/storage';
 import { Budget, FinanceDataState, RecurringTransaction, SavingsGoal, Transaction, UserProfile, UserPurpose, UserUseCase, Workspace } from '@/types/finance';
 import {
@@ -165,6 +166,21 @@ export function AppShell() {
     if (!updatedUser.hasCompletedOnboarding) {
       setIsOnboardingOpen(true);
     }
+  };
+
+  // User Profile & Configuration Update Handler
+  const handleUpdateUser = (updatedUserData: Partial<UserProfile>) => {
+    setDataState((prev) => {
+      if (!prev.user) return prev;
+      const updated = {
+        ...prev.user,
+        ...updatedUserData,
+      };
+      return {
+        ...prev,
+        user: updated,
+      };
+    });
   };
 
   // Logout Handler
@@ -363,10 +379,10 @@ export function AppShell() {
     );
   }
 
-  const isSuperAdmin = dataState.user?.email && [
-    'worldmaster2114@gmail.com',
-    'admin@grupowalnut.com',
-  ].includes(dataState.user.email.toLowerCase().trim());
+  const isSuperAdmin = Boolean(
+    dataState.user?.email &&
+    ['worldmaster2114@gmail.com', 'admin@grupowalnut.com'].includes(dataState.user.email.toLowerCase().trim())
+  );
 
   return (
     <div className="min-h-screen bg-background text-foreground md:flex">
@@ -404,15 +420,14 @@ export function AppShell() {
           <div className="flex items-center justify-between">
             <button
               onClick={() => setIsAuthModalOpen(true)}
-              className="flex items-center gap-2 text-left min-w-0 flex-1 hover:opacity-80 transition"
+              className="flex items-center gap-2.5 text-left min-w-0 flex-1 hover:opacity-80 transition"
             >
-              {dataState.user?.picture ? (
-                <img src={dataState.user.picture} alt={dataState.user.name} className={`h-9 w-9 rounded-full border-2 ${isSuperAdmin ? 'border-amber-500 shadow-xs' : 'border-sidebar-primary'}`} />
-              ) : (
-                <span className={`grid h-9 w-9 place-items-center rounded-full ${isSuperAdmin ? 'bg-amber-500/20 text-amber-500' : 'bg-sidebar-primary/20 text-sidebar-primary'} text-xs font-extrabold`}>
-                  {dataState.user?.name ? dataState.user.name.charAt(0).toUpperCase() : <UserIcon size={16} />}
-                </span>
-              )}
+              <UserAvatar
+                picture={dataState.user?.picture}
+                name={dataState.user?.name}
+                size="sm"
+                isSuperAdmin={isSuperAdmin}
+              />
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5">
                   <p className="text-xs font-bold truncate text-sidebar-foreground">{dataState.user?.name || 'Invitado'}</p>
@@ -528,10 +543,10 @@ export function AppShell() {
         </div>
         <button
           onClick={() => setIsAuthModalOpen(true)}
-          className="p-2 text-foreground"
+          className="p-1 text-foreground"
         >
-          {dataState.user?.picture ? (
-            <img src={dataState.user.picture} alt="User" className="h-7 w-7 rounded-full border border-primary" />
+          {dataState.user ? (
+            <UserAvatar picture={dataState.user.picture} name={dataState.user.name} size="xs" isSuperAdmin={isSuperAdmin} />
           ) : (
             <LogIn size={20} />
           )}
@@ -685,6 +700,7 @@ export function AppShell() {
         onClose={() => setIsAuthModalOpen(false)}
         user={dataState.user}
         onGoogleLogin={handleGoogleLogin}
+        onUpdateUser={handleUpdateUser}
         onLogout={handleLogout}
         onOpenAdminPanel={() => setIsAdminPanelOpen(true)}
       />
