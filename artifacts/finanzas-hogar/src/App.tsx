@@ -80,6 +80,74 @@ export function AppShell() {
     saveFinanceData(dataState);
   }, [dataState]);
 
+  // Real-time Cloud Synchronization with PostgreSQL for Multi-Device Consistency (PC + Mobile)
+  const fetchCloudData = async () => {
+    if (!dataState.user?.id && !dataState.user?.email) return;
+    try {
+      const email = dataState.user.email ? encodeURIComponent(dataState.user.email) : '';
+      const userId = dataState.user.id ? encodeURIComponent(dataState.user.id) : '';
+      const res = await fetch(`/api/finance/state?userId=${userId}&email=${email}`);
+      const data = await res.json();
+
+      if (data && data.status === 'synced') {
+        setDataState((prev) => {
+          // Merge remote workspaces
+          const remoteWorkspaces: Workspace[] = Array.isArray(data.workspaces) && data.workspaces.length > 0
+            ? data.workspaces
+            : prev.workspaces;
+
+          // Resolve active workspace
+          const remoteActiveId = data.activeWorkspaceId || prev.activeWorkspace?.id;
+          const matchedActive = remoteWorkspaces.find((w) => w.id === remoteActiveId) || remoteWorkspaces[0] || prev.activeWorkspace;
+
+          // Merge transactions
+          const remoteTransactions: Transaction[] = Array.isArray(data.transactions) && data.transactions.length > 0
+            ? data.transactions
+            : prev.transactions;
+          
+          // Merge accounts
+          const remoteAccounts = Array.isArray(data.accounts) && data.accounts.length > 0 ? data.accounts : prev.accounts;
+
+          // Merge budgets & savings goals
+          const remoteBudgets = Array.isArray(data.budgets) ? data.budgets : prev.budgets;
+          const remoteGoals = Array.isArray(data.savingsGoals) ? data.savingsGoals : prev.savingsGoals;
+          const remoteRecurring = Array.isArray(data.recurringTransactions) ? data.recurringTransactions : prev.recurringTransactions;
+
+          return {
+            ...prev,
+            user: data.user ? { ...prev.user, ...data.user } : prev.user,
+            workspaces: remoteWorkspaces,
+            activeWorkspace: matchedActive,
+            accounts: remoteAccounts,
+            transactions: remoteTransactions,
+            budgets: remoteBudgets,
+            savingsGoals: remoteGoals,
+            recurringTransactions: remoteRecurring,
+          };
+        });
+      }
+    } catch (err) {
+      console.warn('[CLOUD SYNC] Error fetching cloud state:', err);
+    }
+  };
+
+  // Poll cloud state periodically and on window focus for instant multi-device sync
+  useEffect(() => {
+    fetchCloudData();
+    const interval = setInterval(fetchCloudData, 6000); // Live sync every 6 seconds
+    window.addEventListener('focus', fetchCloudData);
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') fetchCloudData();
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', fetchCloudData);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, [dataState.user?.id, dataState.user?.email]);
+
   // Toggle Dark Mode
   useEffect(() => {
     if (isDarkMode) {

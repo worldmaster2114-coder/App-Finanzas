@@ -12,23 +12,59 @@ import {
   workspaceMembersTable,
   workspaceJoinRequestsTable,
 } from "@workspace/db";
-import { eq, desc } from "drizzle-orm";
+import { eq, or, desc, and } from "drizzle-orm";
 
 const financeRouter = Router();
 
-// GET /api/finance/state
+// GET /api/finance/state?userId=...&email=...&workspaceId=...
 financeRouter.get("/state", async (req, res) => {
   if (!db) {
     return res.json({ status: "local_only", message: "Database not connected" });
   }
 
   try {
+    const userId = req.query["userId"] as string | undefined;
+    const email = req.query["email"] as string | undefined;
     const workspaceId = req.query["workspaceId"] as string | undefined;
+
+    let userRecord = null;
+    if (email) {
+      const u = await db.select().from(usersTable).where(eq(usersTable.email, email.toLowerCase().trim())).limit(1);
+      if (u.length > 0) userRecord = u[0];
+    } else if (userId) {
+      const u = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+      if (u.length > 0) userRecord = u[0];
+    }
+
+    // Fetch workspaces associated with this user
+    let workspaces: any[] = [];
+    if (userRecord) {
+      // 1. Workspaces owned by user
+      const owned = await db.select().from(workspacesTable).where(eq(workspacesTable.ownerId, userRecord.id));
+      
+      // 2. Workspaces where user is a member
+      const memberRows = await db.select().from(workspaceMembersTable).where(eq(workspaceMembersTable.userId, userRecord.id));
+      const memberWsIds = memberRows.map((m) => m.workspaceId);
+      
+      let memberWs: any[] = [];
+      for (const mId of memberWsIds) {
+        const found = await db.select().from(workspacesTable).where(eq(workspacesTable.id, mId));
+        if (found.length > 0) memberWs.push(found[0]);
+      }
+
+      const map = new Map<string, any>();
+      for (const w of [...owned, ...memberWs]) {
+        map.set(w.id, w);
+      }
+      workspaces = Array.from(map.values());
+    } else {
+      workspaces = await db.select().from(workspacesTable);
+    }
 
     const [accounts, categories, transactions, budgets, savingsGoals, recurringTransactions] = await Promise.all([
       db.select().from(accountsTable),
       db.select().from(categoriesTable),
-      db.select().from(transactionsTable),
+      db.select().from(transactionsTable).orderBy(desc(transactionsTable.createdAt)),
       db.select().from(budgetsTable),
       db.select().from(savingsGoalsTable),
       db.select().from(recurringTransactionsTable),
@@ -36,12 +72,15 @@ financeRouter.get("/state", async (req, res) => {
 
     return res.json({
       status: "synced",
-      accounts,
-      categories,
-      transactions,
-      budgets,
-      savingsGoals,
-      recurringTransactions,
+      user: userRecord,
+      workspaces: workspaces.length > 0 ? workspaces : null,
+      activeWorkspaceId: userRecord?.activeWorkspaceId || workspaces[0]?.id || null,
+      accounts: accounts.length > 0 ? accounts : null,
+      categories: categories.length > 0 ? categories : null,
+      transactions: transactions || [],
+      budgets: budgets || [],
+      savingsGoals: savingsGoals || [],
+      recurringTransactions: recurringTransactions || [],
     });
   } catch (err: any) {
     console.error("[API] Error fetching finance state:", err);
@@ -56,87 +95,175 @@ financeRouter.post("/sync", async (req, res) => {
   }
 
   try {
-    const { accounts, categories, transactions, budgets, savingsGoals, recurringTransactions, user, activeWorkspace } = req.body;
+    const {
+      accounts,
+      categories,
+      transactions,
+      budgets,
+      savingsGoals,
+      recurringTransactions,
+      user,
+      activeWorkspace,
+      workspaces,
+    } = req.body;
 
     // 1. Sync User if present
-    if (user && user.id) {
-      await db.insert(usersTable).values({
-        id: user.id,
-        googleId: user.googleId,
-        email: user.email,
-        name: user.name,
-        picture: user.picture,
-        purpose: user.purpose,
-        useCase: user.useCase,
-        activeWorkspaceId: activeWorkspace?.id,
-      }).onConflictDoUpdate({
-        target: usersTable.id,
-        set: {
-          name: user.name,
+    if (user && (user.id || user.email)) {
+      const uId = user.id || `usr-${Date.now()}`;
+      await db
+        .insert(usersTable)
+        .values({
+          id: uId,
+          googleId: user.googleId,
+          email: user.email ? user.email.toLowerCase().trim() : `user-${uId}@grupowalnut.com`,
+          name: user.name || "Usuario",
+          picture: user.picture,
           purpose: user.purpose,
           useCase: user.useCase,
           activeWorkspaceId: activeWorkspace?.id,
-        },
-      });
+        })
+        .onConflictDoUpdate({
+          target: usersTable.id,
+          set: {
+            name: user.name,
+            picture: user.picture,
+            purpose: user.purpose,
+            useCase: user.useCase,
+            activeWorkspaceId: activeWorkspace?.id,
+          },
+        });
     }
 
-    // 2. Sync Workspace if present
-    if (activeWorkspace && activeWorkspace.id) {
-      await db.insert(workspacesTable).values({
-        id: activeWorkspace.id,
-        name: activeWorkspace.name,
-        type: activeWorkspace.type || "personal",
-        inviteCode: activeWorkspace.inviteCode || "503020",
-        ownerId: activeWorkspace.ownerId || user?.id || "usr-default",
-      }).onConflictDoUpdate({
-        target: workspacesTable.id,
-        set: {
-          name: activeWorkspace.name,
-          type: activeWorkspace.type || "personal",
-        },
-      });
+    // 2. Sync all Workspaces if present
+    const allWorkspaces = Array.isArray(workspaces) && workspaces.length > 0 ? workspaces : activeWorkspace ? [activeWorkspace] : [];
+    for (const ws of allWorkspaces) {
+      if (!ws.id) continue;
+      await db
+        .insert(workspacesTable)
+        .values({
+          id: ws.id,
+          name: ws.name || "Mi Espacio",
+          type: ws.type || "personal",
+          inviteCode: ws.inviteCode || Math.random().toString(36).substring(2, 8).toUpperCase(),
+          ownerId: ws.ownerId || user?.id || "usr-default",
+        })
+        .onConflictDoUpdate({
+          target: workspacesTable.id,
+          set: {
+            name: ws.name,
+            type: ws.type || "personal",
+            inviteCode: ws.inviteCode,
+          },
+        });
     }
 
     // 3. Sync Accounts
     if (Array.isArray(accounts) && accounts.length > 0) {
       for (const acc of accounts) {
-        await db.insert(accountsTable).values({
-          id: acc.id,
-          workspaceId: activeWorkspace?.id,
-          name: acc.name,
-          type: acc.type,
-          balance: acc.balance,
-          currency: acc.currency || "DOP",
-          color: acc.color,
-          icon: acc.icon,
-        }).onConflictDoUpdate({
-          target: accountsTable.id,
-          set: {
+        await db
+          .insert(accountsTable)
+          .values({
+            id: acc.id,
+            workspaceId: activeWorkspace?.id,
             name: acc.name,
-            balance: acc.balance,
-            color: acc.color,
-            icon: acc.icon,
-          },
-        });
+            type: acc.type,
+            balance: acc.balance || 0,
+            currency: acc.currency || "DOP",
+            color: acc.color || "#3b82f6",
+            icon: acc.icon || "Wallet",
+          })
+          .onConflictDoUpdate({
+            target: accountsTable.id,
+            set: {
+              name: acc.name,
+              balance: acc.balance,
+              color: acc.color,
+              icon: acc.icon,
+            },
+          });
       }
     }
 
     // 4. Sync Transactions
     if (Array.isArray(transactions) && transactions.length > 0) {
       for (const tx of transactions) {
-        await db.insert(transactionsTable).values({
-          id: tx.id,
-          workspaceId: activeWorkspace?.id,
-          accountId: tx.accountId,
-          categoryId: tx.categoryId,
-          amount: tx.amount,
-          type: tx.type,
-          destinationAccountId: tx.destinationAccountId,
-          date: tx.date,
-          note: tx.note,
-          isRecurring: tx.isRecurring || false,
-          createdByUserId: user?.id,
-        }).onConflictDoNothing();
+        await db
+          .insert(transactionsTable)
+          .values({
+            id: tx.id,
+            workspaceId: tx.workspaceId || activeWorkspace?.id,
+            accountId: tx.accountId,
+            categoryId: tx.categoryId,
+            amount: tx.amount,
+            type: tx.type,
+            destinationAccountId: tx.destinationAccountId,
+            date: tx.date,
+            note: tx.note,
+            isRecurring: tx.isRecurring || false,
+            createdByUserId: tx.createdByUserId || user?.id,
+          })
+          .onConflictDoUpdate({
+            target: transactionsTable.id,
+            set: {
+              amount: tx.amount,
+              type: tx.type,
+              note: tx.note,
+              date: tx.date,
+              accountId: tx.accountId,
+              categoryId: tx.categoryId,
+            },
+          });
+      }
+    }
+
+    // 5. Sync Budgets
+    if (Array.isArray(budgets) && budgets.length > 0) {
+      for (const b of budgets) {
+        await db
+          .insert(budgetsTable)
+          .values({
+            id: b.id,
+            workspaceId: activeWorkspace?.id,
+            categoryId: b.categoryId,
+            amountLimit: b.amountLimit,
+            period: b.period || "monthly",
+            startDate: b.startDate,
+            alertThreshold: b.alertThreshold || 80,
+          })
+          .onConflictDoUpdate({
+            target: budgetsTable.id,
+            set: {
+              amountLimit: b.amountLimit,
+              alertThreshold: b.alertThreshold,
+            },
+          });
+      }
+    }
+
+    // 6. Sync Savings Goals
+    if (Array.isArray(savingsGoals) && savingsGoals.length > 0) {
+      for (const g of savingsGoals) {
+        await db
+          .insert(savingsGoalsTable)
+          .values({
+            id: g.id,
+            workspaceId: activeWorkspace?.id,
+            name: g.name,
+            targetAmount: g.targetAmount,
+            currentAmount: g.currentAmount || 0,
+            deadline: g.deadline,
+            color: g.color || "#10b981",
+            icon: g.icon || "Target",
+            status: g.status || "active",
+          })
+          .onConflictDoUpdate({
+            target: savingsGoalsTable.id,
+            set: {
+              currentAmount: g.currentAmount,
+              targetAmount: g.targetAmount,
+              status: g.status,
+            },
+          });
       }
     }
 
@@ -198,29 +325,26 @@ financeRouter.post("/join-request", async (req, res) => {
 
     const workspace = ws[0];
 
-    const requestId = `req-${Date.now()}`;
-    const newRequest = {
+    // Create a join request for the workspace owner to approve
+    const requestId = `req-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    await db.insert(workspaceJoinRequestsTable).values({
       id: requestId,
       workspaceId: workspace.id,
       workspaceName: workspace.name,
       ownerId: workspace.ownerId,
       requesterId: requester.id,
-      requesterName: requester.name || requester.email.split("@")[0],
+      requesterName: requester.name || "Nuevo Miembro",
       requesterEmail: requester.email || "",
-      requesterPicture: requester.picture || null,
-      status: "pending" as const,
-    };
-
-    await db.insert(workspaceJoinRequestsTable).values(newRequest);
+      requesterPicture: requester.picture,
+      status: "pending",
+    });
 
     return res.json({
       success: true,
-      requestId,
-      workspaceName: workspace.name,
-      message: `Solicitud enviada a ${workspace.name}. El anfitrión la aprobará en breve.`,
+      message: `Solicitud enviada al creador de "${workspace.name}" para unirte.`,
+      workspace,
     });
   } catch (err: any) {
-    console.error("[JOIN_REQUEST]", err);
     return res.status(500).json({ error: err.message });
   }
 });
@@ -228,19 +352,22 @@ financeRouter.post("/join-request", async (req, res) => {
 // GET /api/finance/pending-requests?userId=...
 financeRouter.get("/pending-requests", async (req, res) => {
   const userId = req.query["userId"] as string;
-  if (!userId) return res.json({ requests: [] });
+  if (!userId) {
+    return res.status(400).json({ error: "userId requerido" });
+  }
 
-  if (!db) return res.json({ requests: [] });
+  if (!db) {
+    return res.json({ requests: [] });
+  }
 
   try {
-    const requests = await db
+    const pending = await db
       .select()
       .from(workspaceJoinRequestsTable)
-      .where(eq(workspaceJoinRequestsTable.ownerId, userId))
+      .where(and(eq(workspaceJoinRequestsTable.ownerId, userId), eq(workspaceJoinRequestsTable.status, "pending")))
       .orderBy(desc(workspaceJoinRequestsTable.createdAt));
 
-    const pendingOnly = requests.filter((r) => r.status === "pending");
-    return res.json({ requests: pendingOnly });
+    return res.json({ requests: pending });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }
@@ -248,54 +375,51 @@ financeRouter.get("/pending-requests", async (req, res) => {
 
 // POST /api/finance/respond-request
 financeRouter.post("/respond-request", async (req, res) => {
-  const { requestId, action } = req.body; // action: 'accept' | 'reject'
-  if (!requestId || !action) {
+  const { requestId, action } = req.body;
+  if (!requestId || !["accept", "reject"].includes(action)) {
     return res.status(400).json({ error: "Parámetros inválidos" });
   }
 
-  if (!db) return res.json({ success: true });
+  if (!db) {
+    return res.json({ success: true, message: action === "accept" ? "Miembro aceptado en modo local" : "Solicitud rechazada" });
+  }
 
   try {
-    const reqFound = await db.select().from(workspaceJoinRequestsTable).where(eq(workspaceJoinRequestsTable.id, requestId)).limit(1);
-    if (!reqFound || reqFound.length === 0) {
+    const reqs = await db.select().from(workspaceJoinRequestsTable).where(eq(workspaceJoinRequestsTable.id, requestId)).limit(1);
+    if (!reqs || reqs.length === 0) {
       return res.status(404).json({ error: "Solicitud no encontrada" });
     }
 
-    const request = reqFound[0];
+    const request = reqs[0];
     const newStatus = action === "accept" ? "accepted" : "rejected";
 
-    await db.update(workspaceJoinRequestsTable).set({
-      status: newStatus,
-      respondedAt: new Date(),
-    }).where(eq(workspaceJoinRequestsTable.id, requestId));
+    await db
+      .update(workspaceJoinRequestsTable)
+      .set({
+        status: newStatus,
+        respondedAt: new Date(),
+      })
+      .where(eq(workspaceJoinRequestsTable.id, requestId));
 
     if (action === "accept") {
-      // Add member to workspace members
+      // Add member to workspace_members table
+      const memberId = `mem-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
       await db.insert(workspaceMembersTable).values({
-        id: `wm-${Date.now()}`,
+        id: memberId,
         workspaceId: request.workspaceId,
         userId: request.requesterId,
         role: "member",
       });
-
-      // Update user active workspace
-      await db.update(usersTable).set({
-        activeWorkspaceId: request.workspaceId,
-        useCase: "shared",
-      }).where(eq(usersTable.id, request.requesterId));
     }
 
     return res.json({
       success: true,
-      status: newStatus,
-      requesterName: request.requesterName,
-      message: action === "accept"
-        ? `¡Has aceptado a ${request.requesterName}! Ahora comparten los gastos del hogar.`
-        : `Solicitud de ${request.requesterName} rechazada.`,
+      message: action === "accept" ? `¡${request.requesterName} ha sido añadido a tu Hogar!` : "Solicitud de unión rechazada.",
     });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }
 });
 
+export { financeRouter };
 export default financeRouter;
