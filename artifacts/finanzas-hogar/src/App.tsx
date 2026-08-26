@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { Toaster } from '@/components/ui/toaster';
@@ -78,13 +78,14 @@ export function AppShell() {
     membersCount: 1,
   };
 
-  // Save strictly to local storage on any state change
-  useEffect(() => {
-    saveToLocalStorage(dataState);
-  }, [dataState]);
-
   // Real-time Cloud Synchronization with PostgreSQL for Multi-Device Consistency (PC + Mobile)
+  // Use useRef to hold the latest fetchCloudData so the interval always calls the fresh version
+  const fetchCloudDataRef = useRef<((showLoading?: boolean) => Promise<void>) | null>(null);
+
   const fetchCloudData = async (showLoading = false) => {
+    // Bug #5 fix: Skip fetch if no user is logged in
+    if (!dataState.user?.email && !dataState.user?.id) return;
+
     if (showLoading) setIsSyncing(true);
     try {
       const email = dataState.user?.email ? encodeURIComponent(dataState.user.email) : '';
@@ -108,13 +109,22 @@ export function AppShell() {
             ? data.transactions
             : prev.transactions;
 
-          // Merge accounts
-          const remoteAccounts = Array.isArray(data.accounts) && data.accounts.length > 0 ? data.accounts : prev.accounts;
+          // Merge accounts — only replace if server returned data
+          const remoteAccounts = Array.isArray(data.accounts) && data.accounts.length > 0
+            ? data.accounts
+            : prev.accounts;
 
-          // Merge budgets & savings goals
-          const remoteBudgets = Array.isArray(data.budgets) ? data.budgets : prev.budgets;
-          const remoteGoals = Array.isArray(data.savingsGoals) ? data.savingsGoals : prev.savingsGoals;
-          const remoteRecurring = Array.isArray(data.recurringTransactions) ? data.recurringTransactions : prev.recurringTransactions;
+          // Merge budgets, goals, recurring
+          const remoteBudgets = Array.isArray(data.budgets) && data.budgets.length > 0 ? data.budgets : prev.budgets;
+          const remoteGoals = Array.isArray(data.savingsGoals) && data.savingsGoals.length > 0 ? data.savingsGoals : prev.savingsGoals;
+          const remoteRecurring = Array.isArray(data.recurringTransactions) && data.recurringTransactions.length > 0
+            ? data.recurringTransactions
+            : prev.recurringTransactions;
+
+          // Merge categories — only replace if server returned data
+          const remoteCategories = Array.isArray(data.categories) && data.categories.length > 0
+            ? data.categories
+            : prev.categories;
 
           const merged: FinanceDataState = {
             ...prev,
@@ -122,6 +132,7 @@ export function AppShell() {
             workspaces: remoteWorkspaces,
             activeWorkspace: matchedActive,
             accounts: remoteAccounts,
+            categories: remoteCategories,
             transactions: remoteTransactions,
             budgets: remoteBudgets,
             savingsGoals: remoteGoals,
@@ -143,22 +154,33 @@ export function AppShell() {
     }
   };
 
+  // Bug #2 fix: Keep ref always pointing to latest fetchCloudData
+  fetchCloudDataRef.current = fetchCloudData;
+
   // Poll cloud state periodically and on window focus for instant multi-device sync
   useEffect(() => {
-    fetchCloudData();
-    const interval = setInterval(() => fetchCloudData(false), 5000); // Live sync every 5 seconds
-    window.addEventListener('focus', () => fetchCloudData(false));
+    // Use the ref so interval always uses the latest fetchCloudData (no stale closure)
+    const call = (showLoading?: boolean) => fetchCloudDataRef.current?.(showLoading);
+
+    call(false); // initial fetch on mount / user change
+
+    const interval = setInterval(() => call(false), 5000); // Live sync every 5 seconds
+
+    const handleFocus = () => call(false);
     const handleVisibility = () => {
-      if (document.visibilityState === 'visible') fetchCloudData(false);
+      if (document.visibilityState === 'visible') call(false);
     };
+
+    window.addEventListener('focus', handleFocus);
     document.addEventListener('visibilitychange', handleVisibility);
 
     return () => {
       clearInterval(interval);
-      window.removeEventListener('focus', () => fetchCloudData(false));
+      window.removeEventListener('focus', handleFocus);
       document.removeEventListener('visibilitychange', handleVisibility);
     };
   }, [dataState.user?.id, dataState.user?.email]);
+
 
   // Toggle Dark Mode
   useEffect(() => {

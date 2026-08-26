@@ -25,9 +25,9 @@ financeRouter.get("/state", async (req, res) => {
   try {
     const userId = req.query["userId"] as string | undefined;
     const email = req.query["email"] as string | undefined;
-    const workspaceId = req.query["workspaceId"] as string | undefined;
 
-    let userRecord = null;
+    // --- 1. Resolve user record ---
+    let userRecord: any = null;
     if (email) {
       const u = await db.select().from(usersTable).where(eq(usersTable.email, email.toLowerCase().trim())).limit(1);
       if (u.length > 0) userRecord = u[0];
@@ -36,47 +36,97 @@ financeRouter.get("/state", async (req, res) => {
       if (u.length > 0) userRecord = u[0];
     }
 
-    // Fetch workspaces associated with this user
-    let workspaces: any[] = [];
-    if (userRecord) {
-      const owned = await db
-        .select()
-        .from(workspacesTable)
-        .where(or(eq(workspacesTable.ownerId, userRecord.id), eq(workspacesTable.ownerId, userRecord.email)));
-
-      const memberRows = await db
-        .select()
-        .from(workspaceMembersTable)
-        .where(eq(workspaceMembersTable.userId, userRecord.id));
-      const memberWsIds = memberRows.map((m) => m.workspaceId);
-
-      let memberWs: any[] = [];
-      for (const mId of memberWsIds) {
-        const found = await db.select().from(workspacesTable).where(eq(workspacesTable.id, mId));
-        if (found.length > 0) memberWs.push(found[0]);
-      }
-
-      const map = new Map<string, any>();
-      for (const w of [...owned, ...memberWs]) {
-        map.set(w.id, w);
-      }
-      workspaces = Array.from(map.values());
-
-      // If user has no specific workspaces attached yet, return all existing workspaces
-      if (workspaces.length === 0) {
-        workspaces = await db.select().from(workspacesTable);
-      }
-    } else {
-      workspaces = await db.select().from(workspacesTable);
+    // No user found → return empty (do NOT leak other users' data)
+    if (!userRecord) {
+      return res.json({
+        status: "synced",
+        user: null,
+        workspaces: [],
+        activeWorkspaceId: null,
+        accounts: [],
+        categories: [],
+        transactions: [],
+        budgets: [],
+        savingsGoals: [],
+        recurringTransactions: [],
+      });
     }
 
+    // --- 2. Fetch workspaces this user owns OR is member of ---
+    const owned = await db
+      .select()
+      .from(workspacesTable)
+      .where(or(eq(workspacesTable.ownerId, userRecord.id), eq(workspacesTable.ownerId, userRecord.email)));
+
+    const memberRows = await db
+      .select()
+      .from(workspaceMembersTable)
+      .where(eq(workspaceMembersTable.userId, userRecord.id));
+
+    let memberWs: any[] = [];
+    for (const mRow of memberRows) {
+      const found = await db.select().from(workspacesTable).where(eq(workspacesTable.id, mRow.workspaceId));
+      if (found.length > 0) memberWs.push(found[0]);
+    }
+
+    // Deduplicate workspaces
+    const wsMap = new Map<string, any>();
+    for (const w of [...owned, ...memberWs]) wsMap.set(w.id, w);
+    const workspaces = Array.from(wsMap.values());
+
+    // --- 3. Determine which workspace IDs belong to this user ---
+    const wsIds: string[] = workspaces.map((w) => w.id);
+
+    // If user has no workspaces yet, return empty data (NOT global data)
+    if (wsIds.length === 0) {
+      return res.json({
+        status: "synced",
+        user: userRecord,
+        workspaces: [],
+        activeWorkspaceId: null,
+        accounts: [],
+        categories: [],
+        transactions: [],
+        budgets: [],
+        savingsGoals: [],
+        recurringTransactions: [],
+      });
+    }
+
+    // --- 4. Fetch all data SCOPED to user's workspaces ---
     const [accounts, categories, transactions, budgets, savingsGoals, recurringTransactions] = await Promise.all([
-      db.select().from(accountsTable),
-      db.select().from(categoriesTable),
-      db.select().from(transactionsTable).orderBy(desc(transactionsTable.createdAt)),
-      db.select().from(budgetsTable),
-      db.select().from(savingsGoalsTable),
-      db.select().from(recurringTransactionsTable),
+      db.select().from(accountsTable).where(
+        wsIds.length === 1
+          ? eq(accountsTable.workspaceId, wsIds[0])
+          : or(...wsIds.map((id) => eq(accountsTable.workspaceId, id)))
+      ),
+      db.select().from(categoriesTable).where(
+        wsIds.length === 1
+          ? eq(categoriesTable.workspaceId, wsIds[0])
+          : or(...wsIds.map((id) => eq(categoriesTable.workspaceId, id)))
+      ),
+      db.select().from(transactionsTable)
+        .where(
+          wsIds.length === 1
+            ? eq(transactionsTable.workspaceId, wsIds[0])
+            : or(...wsIds.map((id) => eq(transactionsTable.workspaceId, id)))
+        )
+        .orderBy(desc(transactionsTable.createdAt)),
+      db.select().from(budgetsTable).where(
+        wsIds.length === 1
+          ? eq(budgetsTable.workspaceId, wsIds[0])
+          : or(...wsIds.map((id) => eq(budgetsTable.workspaceId, id)))
+      ),
+      db.select().from(savingsGoalsTable).where(
+        wsIds.length === 1
+          ? eq(savingsGoalsTable.workspaceId, wsIds[0])
+          : or(...wsIds.map((id) => eq(savingsGoalsTable.workspaceId, id)))
+      ),
+      db.select().from(recurringTransactionsTable).where(
+        wsIds.length === 1
+          ? eq(recurringTransactionsTable.workspaceId, wsIds[0])
+          : or(...wsIds.map((id) => eq(recurringTransactionsTable.workspaceId, id)))
+      ),
     ]);
 
     return res.json({
@@ -84,7 +134,7 @@ financeRouter.get("/state", async (req, res) => {
       user: userRecord,
       workspaces: workspaces.length > 0 ? workspaces : null,
       activeWorkspaceId: userRecord?.activeWorkspaceId || workspaces[0]?.id || null,
-      accounts: accounts.length > 0 ? accounts : null,
+      accounts: accounts.length > 0 ? accounts : [],
       categories: categories.length > 0 ? categories : null,
       transactions: transactions || [],
       budgets: budgets || [],
@@ -96,6 +146,7 @@ financeRouter.get("/state", async (req, res) => {
     return res.status(500).json({ error: err.message });
   }
 });
+
 
 // POST /api/finance/sync
 financeRouter.post("/sync", async (req, res) => {
@@ -193,7 +244,34 @@ financeRouter.post("/sync", async (req, res) => {
       }
     }
 
-    // 4. Sync Transactions
+    // 4. Sync Categories (with workspaceId so they are isolated per user)
+    if (Array.isArray(categories) && categories.length > 0) {
+      for (const cat of categories) {
+        if (!cat.id) continue;
+        await db
+          .insert(categoriesTable)
+          .values({
+            id: cat.id,
+            workspaceId: cat.workspaceId || activeWorkspace?.id,
+            name: cat.name,
+            type: cat.type,
+            icon: cat.icon || "Tag",
+            color: cat.color || "#6b7280",
+            isDefault: cat.isDefault || false,
+            parentId: cat.parentId || null,
+          })
+          .onConflictDoUpdate({
+            target: categoriesTable.id,
+            set: {
+              name: cat.name,
+              icon: cat.icon,
+              color: cat.color,
+            },
+          });
+      }
+    }
+
+    // 5. Sync Transactions
     if (Array.isArray(transactions) && transactions.length > 0) {
       for (const tx of transactions) {
         await db
