@@ -128,13 +128,13 @@ export function AppShell() {
   const handleGoogleLogin = (googleUserData: Partial<UserProfile>) => {
     const updatedUser: UserProfile = {
       id: googleUserData.id || `usr-${Date.now()}`,
-      googleId: googleUserData.googleId,
+      googleId: googleUserData.googleId || googleUserData.id,
       email: googleUserData.email || '',
-      name: googleUserData.name || 'Usuario Google',
+      name: googleUserData.name || 'Usuario',
       picture: googleUserData.picture,
       purpose: dataState.user?.purpose || 'controlar',
       useCase: dataState.user?.useCase || 'personal',
-      hasCompletedOnboarding: dataState.user?.hasCompletedOnboarding || false,
+      hasCompletedOnboarding: true,
     };
 
     setDataState((prev) => ({
@@ -142,6 +142,7 @@ export function AppShell() {
       user: updatedUser,
     }));
     setIsAuthenticated(true);
+    setIsOnboardingOpen(false);
 
     // If registered via invitation link (?join=XYZ123), notify the owner!
     if (typeof window !== 'undefined') {
@@ -160,11 +161,6 @@ export function AppShell() {
         // Join workspace locally as well
         handleJoinSharedWorkspace(inviteCode);
       }
-    }
-
-    // If new user who hasn't completed onboarding yet, open the secondary onboarding wizard!
-    if (!updatedUser.hasCompletedOnboarding) {
-      setIsOnboardingOpen(true);
     }
   };
 
@@ -687,10 +683,8 @@ export function AppShell() {
       {/* Onboarding Wizard Modal */}
       <OnboardingWizard
         isOpen={isOnboardingOpen}
+        onClose={() => setIsOnboardingOpen(false)}
         initialUser={dataState.user}
-        onOpenGoogleLogin={() => {
-          setIsAuthModalOpen(true);
-        }}
         onComplete={handleOnboardingComplete}
       />
 
