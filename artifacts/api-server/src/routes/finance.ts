@@ -39,13 +39,17 @@ financeRouter.get("/state", async (req, res) => {
     // Fetch workspaces associated with this user
     let workspaces: any[] = [];
     if (userRecord) {
-      // 1. Workspaces owned by user
-      const owned = await db.select().from(workspacesTable).where(eq(workspacesTable.ownerId, userRecord.id));
-      
-      // 2. Workspaces where user is a member
-      const memberRows = await db.select().from(workspaceMembersTable).where(eq(workspaceMembersTable.userId, userRecord.id));
+      const owned = await db
+        .select()
+        .from(workspacesTable)
+        .where(or(eq(workspacesTable.ownerId, userRecord.id), eq(workspacesTable.ownerId, userRecord.email)));
+
+      const memberRows = await db
+        .select()
+        .from(workspaceMembersTable)
+        .where(eq(workspaceMembersTable.userId, userRecord.id));
       const memberWsIds = memberRows.map((m) => m.workspaceId);
-      
+
       let memberWs: any[] = [];
       for (const mId of memberWsIds) {
         const found = await db.select().from(workspacesTable).where(eq(workspacesTable.id, mId));
@@ -57,6 +61,11 @@ financeRouter.get("/state", async (req, res) => {
         map.set(w.id, w);
       }
       workspaces = Array.from(map.values());
+
+      // If user has no specific workspaces attached yet, return all existing workspaces
+      if (workspaces.length === 0) {
+        workspaces = await db.select().from(workspacesTable);
+      }
     } else {
       workspaces = await db.select().from(workspacesTable);
     }
@@ -270,6 +279,20 @@ financeRouter.post("/sync", async (req, res) => {
     return res.json({ success: true, message: "Datos sincronizados con PostgreSQL exitosamente" });
   } catch (err: any) {
     console.error("[API] Error syncing to PostgreSQL:", err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/finance/transaction/delete
+financeRouter.post("/transaction/delete", async (req, res) => {
+  const { id } = req.body;
+  if (!id) return res.status(400).json({ error: "id required" });
+  if (!db) return res.json({ success: true, message: "Deleted locally" });
+
+  try {
+    await db.delete(transactionsTable).where(eq(transactionsTable.id, id));
+    return res.json({ success: true, message: "Transacción eliminada de PostgreSQL" });
+  } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }
 });

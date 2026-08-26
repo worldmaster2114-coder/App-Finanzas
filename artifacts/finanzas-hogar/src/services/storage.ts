@@ -1,6 +1,6 @@
 import { Account, Budget, Category, FinanceDataState, RecurringTransaction, SavingsGoal, Transaction } from '@/types/finance';
 
-// Bumped storage key to v3-clean for fresh production zero-balance state
+// Storage Key for Local Cache
 const STORAGE_KEY = 'finanzas-hogar:v3-clean';
 
 export const DEFAULT_ACCOUNTS: Account[] = [
@@ -84,21 +84,38 @@ export function loadFinanceData(): FinanceDataState {
     console.error('Failed to parse storage, initializing clean data:', err);
   }
 
-  saveFinanceData(initial);
+  saveToLocalStorage(initial);
   return initial;
 }
 
-// Background Debounced Sync to PostgreSQL Backend
-let syncTimeout: any = null;
-
-export function saveFinanceData(data: FinanceDataState): void {
+// 1. Save strictly to Local Storage
+export function saveToLocalStorage(data: FinanceDataState): void {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
   } catch (err) {
     console.error('Failed to save to localStorage:', err);
   }
+}
 
-  // Sync to PostgreSQL Backend API
+// 2. Explicit Immediate or Debounced Sync to PostgreSQL Cloud Backend
+let syncTimeout: any = null;
+
+export function syncFinanceDataToCloud(data: FinanceDataState, immediate = false): void {
+  // Always update local cache
+  saveToLocalStorage(data);
+
+  if (immediate) {
+    if (syncTimeout) clearTimeout(syncTimeout);
+    fetch('/api/finance/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    }).catch((err) => {
+      console.warn('[CLOUD SYNC] Error pushing to PostgreSQL:', err);
+    });
+    return;
+  }
+
   if (syncTimeout) clearTimeout(syncTimeout);
   syncTimeout = setTimeout(() => {
     fetch('/api/finance/sync', {
@@ -106,10 +123,13 @@ export function saveFinanceData(data: FinanceDataState): void {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     }).catch((err) => {
-      console.warn('[SYNC] PostgreSQL sync in progress or offline:', err);
+      console.warn('[CLOUD SYNC] Error pushing to PostgreSQL:', err);
     });
-  }, 1000);
+  }, 400);
 }
+
+// Backwards-compatible saveFinanceData alias
+export const saveFinanceData = syncFinanceDataToCloud;
 
 export function exportToJSON(data: FinanceDataState): void {
   const jsonStr = JSON.stringify(data, null, 2);

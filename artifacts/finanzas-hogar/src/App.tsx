@@ -18,7 +18,7 @@ import { SupportTicketModal } from '@/components/support-ticket-modal';
 import { JoinRequestBanner } from '@/components/join-request-banner';
 import { ShareHouseholdModal } from '@/components/share-household-modal';
 import { UserAvatar } from '@/components/user-avatar';
-import { loadFinanceData, saveFinanceData } from '@/services/storage';
+import { loadFinanceData, saveFinanceData, saveToLocalStorage, syncFinanceDataToCloud } from '@/services/storage';
 import { Budget, FinanceDataState, RecurringTransaction, SavingsGoal, Transaction, UserProfile, UserPurpose, UserUseCase, Workspace } from '@/types/finance';
 import {
   Wallet,
@@ -42,6 +42,8 @@ import {
   Share2,
   ShieldAlert,
   HelpCircle,
+  RefreshCw,
+  Cloud,
 } from 'lucide-react';
 
 const queryClient = new QueryClient();
@@ -49,6 +51,7 @@ const queryClient = new QueryClient();
 export function AppShell() {
   const [dataState, setDataState] = useState<FinanceDataState>(loadFinanceData);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => !!dataState.user);
+  const [isSyncing, setIsSyncing] = useState(false);
   const [activeTab, setActiveTab] = useState<'dashboard' | 'goals' | 'budgets' | 'forecast' | 'history'>('dashboard');
   const [isFastEntryOpen, setIsFastEntryOpen] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
@@ -75,17 +78,17 @@ export function AppShell() {
     membersCount: 1,
   };
 
-  // Save to localStorage on any data change
+  // Save strictly to local storage on any state change
   useEffect(() => {
-    saveFinanceData(dataState);
+    saveToLocalStorage(dataState);
   }, [dataState]);
 
   // Real-time Cloud Synchronization with PostgreSQL for Multi-Device Consistency (PC + Mobile)
-  const fetchCloudData = async () => {
-    if (!dataState.user?.id && !dataState.user?.email) return;
+  const fetchCloudData = async (showLoading = false) => {
+    if (showLoading) setIsSyncing(true);
     try {
-      const email = dataState.user.email ? encodeURIComponent(dataState.user.email) : '';
-      const userId = dataState.user.id ? encodeURIComponent(dataState.user.id) : '';
+      const email = dataState.user?.email ? encodeURIComponent(dataState.user.email) : '';
+      const userId = dataState.user?.id ? encodeURIComponent(dataState.user.id) : '';
       const res = await fetch(`/api/finance/state?userId=${userId}&email=${email}`);
       const data = await res.json();
 
@@ -101,10 +104,10 @@ export function AppShell() {
           const matchedActive = remoteWorkspaces.find((w) => w.id === remoteActiveId) || remoteWorkspaces[0] || prev.activeWorkspace;
 
           // Merge transactions
-          const remoteTransactions: Transaction[] = Array.isArray(data.transactions) && data.transactions.length > 0
+          const remoteTransactions: Transaction[] = Array.isArray(data.transactions)
             ? data.transactions
             : prev.transactions;
-          
+
           // Merge accounts
           const remoteAccounts = Array.isArray(data.accounts) && data.accounts.length > 0 ? data.accounts : prev.accounts;
 
@@ -113,7 +116,7 @@ export function AppShell() {
           const remoteGoals = Array.isArray(data.savingsGoals) ? data.savingsGoals : prev.savingsGoals;
           const remoteRecurring = Array.isArray(data.recurringTransactions) ? data.recurringTransactions : prev.recurringTransactions;
 
-          return {
+          const merged: FinanceDataState = {
             ...prev,
             user: data.user ? { ...prev.user, ...data.user } : prev.user,
             workspaces: remoteWorkspaces,
@@ -124,26 +127,35 @@ export function AppShell() {
             savingsGoals: remoteGoals,
             recurringTransactions: remoteRecurring,
           };
+
+          // Save directly to localStorage without re-triggering remote sync loop
+          saveToLocalStorage(merged);
+
+          return merged;
         });
       }
     } catch (err) {
       console.warn('[CLOUD SYNC] Error fetching cloud state:', err);
+    } finally {
+      if (showLoading) {
+        setTimeout(() => setIsSyncing(false), 500);
+      }
     }
   };
 
   // Poll cloud state periodically and on window focus for instant multi-device sync
   useEffect(() => {
     fetchCloudData();
-    const interval = setInterval(fetchCloudData, 6000); // Live sync every 6 seconds
-    window.addEventListener('focus', fetchCloudData);
+    const interval = setInterval(() => fetchCloudData(false), 5000); // Live sync every 5 seconds
+    window.addEventListener('focus', () => fetchCloudData(false));
     const handleVisibility = () => {
-      if (document.visibilityState === 'visible') fetchCloudData();
+      if (document.visibilityState === 'visible') fetchCloudData(false);
     };
     document.addEventListener('visibilitychange', handleVisibility);
 
     return () => {
       clearInterval(interval);
-      window.removeEventListener('focus', fetchCloudData);
+      window.removeEventListener('focus', () => fetchCloudData(false));
       document.removeEventListener('visibilitychange', handleVisibility);
     };
   }, [dataState.user?.id, dataState.user?.email]);
@@ -377,25 +389,25 @@ export function AppShell() {
       createdAt: new Date().toISOString(),
     };
 
-    setDataState((prev) => {
-      // Update account balances
-      const updatedAccounts = prev.accounts.map((acc) => {
-        if (acc.id === newTx.accountId) {
-          const delta = newTx.type === 'income' ? newTx.amount : -newTx.amount;
-          return { ...acc, balance: acc.balance + delta };
-        }
-        if (newTx.type === 'transfer' && acc.id === newTx.destinationAccountId) {
-          return { ...acc, balance: acc.balance + newTx.amount };
-        }
-        return acc;
-      });
-
-      return {
-        ...prev,
-        accounts: updatedAccounts,
-        transactions: [newTx, ...prev.transactions],
-      };
+    const updatedAccounts = dataState.accounts.map((acc) => {
+      if (acc.id === newTx.accountId) {
+        const delta = newTx.type === 'income' ? newTx.amount : -newTx.amount;
+        return { ...acc, balance: acc.balance + delta };
+      }
+      if (newTx.type === 'transfer' && acc.id === newTx.destinationAccountId) {
+        return { ...acc, balance: acc.balance + newTx.amount };
+      }
+      return acc;
     });
+
+    const nextState: FinanceDataState = {
+      ...dataState,
+      accounts: updatedAccounts,
+      transactions: [newTx, ...dataState.transactions],
+    };
+
+    setDataState(nextState);
+    syncFinanceDataToCloud(nextState, true);
   };
 
   // Add Savings Goal Handler
@@ -405,37 +417,39 @@ export function AppShell() {
       id: `sg-${Date.now()}`,
       workspaceId: activeWorkspace.id,
     };
-    setDataState((prev) => ({
-      ...prev,
-      savingsGoals: [newGoal, ...prev.savingsGoals],
-    }));
+    const nextState = {
+      ...dataState,
+      savingsGoals: [newGoal, ...dataState.savingsGoals],
+    };
+    setDataState(nextState);
+    syncFinanceDataToCloud(nextState, true);
   };
 
   // Update Savings Goal Amount (Deposit / Withdraw)
   const handleUpdateGoalAmount = (goalId: string, deltaAmount: number, accountId: string) => {
-    setDataState((prev) => {
-      const updatedGoals = prev.savingsGoals.map((g) => {
-        if (g.id === goalId) {
-          const newCurrent = Math.max(0, g.currentAmount + deltaAmount);
-          const status: SavingsGoal['status'] = newCurrent >= g.targetAmount ? 'completed' : 'active';
-          return { ...g, currentAmount: newCurrent, status };
-        }
-        return g;
-      });
-
-      const updatedAccounts = prev.accounts.map((a) => {
-        if (a.id === accountId) {
-          return { ...a, balance: a.balance - deltaAmount };
-        }
-        return a;
-      });
-
-      return {
-        ...prev,
-        savingsGoals: updatedGoals,
-        accounts: updatedAccounts,
-      };
+    const updatedGoals = dataState.savingsGoals.map((g) => {
+      if (g.id === goalId) {
+        const newCurrent = Math.max(0, g.currentAmount + deltaAmount);
+        const status: SavingsGoal['status'] = newCurrent >= g.targetAmount ? 'completed' : 'active';
+        return { ...g, currentAmount: newCurrent, status };
+      }
+      return g;
     });
+
+    const updatedAccounts = dataState.accounts.map((a) => {
+      if (a.id === accountId) {
+        return { ...a, balance: a.balance - deltaAmount };
+      }
+      return a;
+    });
+
+    const nextState = {
+      ...dataState,
+      savingsGoals: updatedGoals,
+      accounts: updatedAccounts,
+    };
+    setDataState(nextState);
+    syncFinanceDataToCloud(nextState, true);
   };
 
   // Add Budget Handler
@@ -445,10 +459,12 @@ export function AppShell() {
       id: `b-${Date.now()}`,
       workspaceId: activeWorkspace.id,
     };
-    setDataState((prev) => ({
-      ...prev,
-      budgets: [newBudget, ...prev.budgets],
-    }));
+    const nextState = {
+      ...dataState,
+      budgets: [newBudget, ...dataState.budgets],
+    };
+    setDataState(nextState);
+    syncFinanceDataToCloud(nextState, true);
   };
 
   // Add Recurring Transaction Handler
@@ -458,10 +474,12 @@ export function AppShell() {
       id: `rec-${Date.now()}`,
       workspaceId: activeWorkspace.id,
     };
-    setDataState((prev) => ({
-      ...prev,
-      recurringTransactions: [newRec, ...prev.recurringTransactions],
-    }));
+    const nextState = {
+      ...dataState,
+      recurringTransactions: [newRec, ...dataState.recurringTransactions],
+    };
+    setDataState(nextState);
+    syncFinanceDataToCloud(nextState, true);
   };
 
   // Delete Transaction Handler
@@ -469,24 +487,31 @@ export function AppShell() {
     const tx = dataState.transactions.find((t) => t.id === id);
     if (!tx) return;
 
-    setDataState((prev) => {
-      const updatedAccounts = prev.accounts.map((acc) => {
-        if (acc.id === tx.accountId) {
-          const delta = tx.type === 'income' ? -tx.amount : tx.amount;
-          return { ...acc, balance: acc.balance + delta };
-        }
-        if (tx.type === 'transfer' && acc.id === tx.destinationAccountId) {
-          return { ...acc, balance: acc.balance - tx.amount };
-        }
-        return acc;
-      });
+    fetch('/api/finance/transaction/delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id }),
+    }).catch(console.warn);
 
-      return {
-        ...prev,
-        accounts: updatedAccounts,
-        transactions: prev.transactions.filter((t) => t.id !== id),
-      };
+    const updatedAccounts = dataState.accounts.map((acc) => {
+      if (acc.id === tx.accountId) {
+        const delta = tx.type === 'income' ? -tx.amount : tx.amount;
+        return { ...acc, balance: acc.balance + delta };
+      }
+      if (tx.type === 'transfer' && acc.id === tx.destinationAccountId) {
+        return { ...acc, balance: acc.balance - tx.amount };
+      }
+      return acc;
     });
+
+    const nextState = {
+      ...dataState,
+      accounts: updatedAccounts,
+      transactions: dataState.transactions.filter((t) => t.id !== id),
+    };
+
+    setDataState(nextState);
+    syncFinanceDataToCloud(nextState, true);
   };
 
   const navItems = [
@@ -590,6 +615,19 @@ export function AppShell() {
               onDeleteWorkspace={handleDeleteWorkspace}
             />
           </div>
+
+          {/* Real-time Cloud Sync Status */}
+          <div className="mt-2.5 pt-2 border-t border-sidebar-border/60 flex items-center justify-between">
+            <button
+              type="button"
+              onClick={() => fetchCloudData(true)}
+              className="flex items-center gap-1.5 text-[10px] font-bold text-sidebar-foreground/70 hover:text-primary transition"
+              title="Sincronizar datos con PostgreSQL"
+            >
+              <RefreshCw size={11} className={isSyncing ? "animate-spin text-primary" : "text-emerald-500"} />
+              <span>{isSyncing ? "Sincronizando..." : "Nube PostgreSQL Conectada"}</span>
+            </button>
+          </div>
         </div>
 
         {/* Menu Section */}
@@ -671,6 +709,14 @@ export function AppShell() {
           </span>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => fetchCloudData(true)}
+            className="p-1.5 rounded-lg text-foreground/80 hover:text-primary transition hover:bg-secondary/60"
+            title="Sincronizar con PostgreSQL"
+          >
+            <RefreshCw size={16} className={isSyncing ? "animate-spin text-primary" : "text-emerald-500"} />
+          </button>
           <button
             onClick={() => setIsShareHouseholdOpen(true)}
             className="flex items-center gap-1 rounded-xl border border-purple-500/40 bg-purple-500/15 px-2.5 py-1 text-xs font-bold text-purple-400 hover:bg-purple-500/25 transition shadow-xs"
