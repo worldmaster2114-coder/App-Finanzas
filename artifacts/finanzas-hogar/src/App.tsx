@@ -117,12 +117,33 @@ export function AppShell() {
       membersCount: data.useCase === 'shared' ? 2 : 1,
     };
 
-    setDataState((prev) => ({
-      ...prev,
-      user: userProfile,
-      workspaces: [...(prev.workspaces || []), newWorkspace],
-      activeWorkspace: newWorkspace,
-    }));
+    setDataState((prev) => {
+      const existing = prev.workspaces || [];
+      const isInitialDefault = existing.length === 1 && (existing[0].name === 'Presupuesto Personal' || existing[0].name === 'Mi Presupuesto');
+      
+      let updatedWorkspaces: Workspace[];
+      let nextActive: Workspace;
+
+      if (isInitialDefault) {
+        // Update the single default workspace rather than creating a duplicate
+        nextActive = {
+          ...existing[0],
+          name: data.workspaceName,
+          type: data.useCase,
+        };
+        updatedWorkspaces = [nextActive];
+      } else {
+        updatedWorkspaces = [...existing, newWorkspace];
+        nextActive = newWorkspace;
+      }
+
+      return {
+        ...prev,
+        user: userProfile,
+        workspaces: updatedWorkspaces,
+        activeWorkspace: nextActive,
+      };
+    });
 
     setIsOnboardingOpen(false);
   };
@@ -236,6 +257,20 @@ export function AppShell() {
       workspaces: [...prev.workspaces, joinedWs],
       activeWorkspace: joinedWs,
     }));
+  };
+
+  // Delete Workspace Handler
+  const handleDeleteWorkspace = (workspaceId: string) => {
+    setDataState((prev) => {
+      const filtered = prev.workspaces.filter((w) => w.id !== workspaceId);
+      if (filtered.length === 0) return prev;
+      const nextActive = prev.activeWorkspace?.id === workspaceId ? filtered[0] : prev.activeWorkspace;
+      return {
+        ...prev,
+        workspaces: filtered,
+        activeWorkspace: nextActive,
+      };
+    });
   };
 
   // Ensure Shared Invite Code
@@ -484,6 +519,7 @@ export function AppShell() {
               onSwitchWorkspace={handleSwitchWorkspace}
               onCreateSharedWorkspace={handleCreateSharedWorkspace}
               onJoinSharedWorkspace={handleJoinSharedWorkspace}
+              onDeleteWorkspace={handleDeleteWorkspace}
             />
           </div>
         </div>

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { UserProfile, Workspace } from '@/types/finance';
-import { Users, User, KeyRound, Copy, Check, Plus, ChevronDown, Share2, MessageCircle, X, Link } from 'lucide-react';
+import { Users, User, KeyRound, Copy, Check, Plus, ChevronDown, Share2, MessageCircle, X, Link, Trash2 } from 'lucide-react';
 
 type WorkspaceSwitcherProps = {
   activeWorkspace: Workspace | null;
@@ -9,6 +9,7 @@ type WorkspaceSwitcherProps = {
   onSwitchWorkspace: (workspaceId: string) => void;
   onCreateSharedWorkspace: (name: string) => void;
   onJoinSharedWorkspace: (code: string) => void;
+  onDeleteWorkspace?: (workspaceId: string) => void;
 };
 
 export function WorkspaceSwitcher({
@@ -18,6 +19,7 @@ export function WorkspaceSwitcher({
   onSwitchWorkspace,
   onCreateSharedWorkspace,
   onJoinSharedWorkspace,
+  onDeleteWorkspace,
 }: WorkspaceSwitcherProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -93,13 +95,13 @@ export function WorkspaceSwitcher({
             {workspaces.map((ws) => {
               const isSelected = activeWorkspace?.id === ws.id;
               return (
-                <button
+                <div
                   key={ws.id}
                   onClick={() => {
                     onSwitchWorkspace(ws.id);
                     setIsOpen(false);
                   }}
-                  className={`flex w-full items-center justify-between rounded-xl px-2.5 py-2 text-xs font-semibold transition ${
+                  className={`flex w-full items-center justify-between rounded-xl px-2.5 py-2 text-xs font-semibold cursor-pointer transition ${
                     isSelected ? 'bg-primary/10 text-primary font-bold' : 'text-popover-foreground hover:bg-secondary'
                   }`}
                 >
@@ -107,8 +109,23 @@ export function WorkspaceSwitcher({
                     {ws.type === 'shared' ? <Users size={14} className="text-purple-500" /> : <User size={14} className="text-blue-500" />}
                     <span className="truncate">{ws.name}</span>
                   </span>
-                  {isSelected && <Check size={14} />}
-                </button>
+                  <div className="flex items-center gap-1">
+                    {isSelected && <Check size={14} className="text-primary" />}
+                    {onDeleteWorkspace && workspaces.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onDeleteWorkspace(ws.id);
+                        }}
+                        className="p-1 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition opacity-60 hover:opacity-100"
+                        title="Eliminar este espacio"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    )}
+                  </div>
+                </div>
               );
             })}
           </div>
