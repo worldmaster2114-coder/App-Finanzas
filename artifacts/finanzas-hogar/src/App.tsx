@@ -323,17 +323,17 @@ export function AppShell() {
 
   // User Profile & Configuration Update Handler
   const handleUpdateUser = (updatedUserData: Partial<UserProfile>) => {
-    setDataState((prev) => {
-      if (!prev.user) return prev;
-      const updated = {
-        ...prev.user,
-        ...updatedUserData,
-      };
-      return {
-        ...prev,
-        user: updated,
-      };
-    });
+    if (!dataState.user) return;
+    const updated = {
+      ...dataState.user,
+      ...updatedUserData,
+    };
+    const nextState: FinanceDataState = {
+      ...dataState,
+      user: updated,
+    };
+    setDataState(nextState);
+    syncFinanceDataToCloud(nextState, true);
   };
 
   // Logout Handler
@@ -349,10 +349,12 @@ export function AppShell() {
   const handleSwitchWorkspace = (workspaceId: string) => {
     const target = dataState.workspaces.find((w) => w.id === workspaceId);
     if (target) {
-      setDataState((prev) => ({
-        ...prev,
+      const nextState: FinanceDataState = {
+        ...dataState,
         activeWorkspace: target,
-      }));
+      };
+      setDataState(nextState);
+      syncFinanceDataToCloud(nextState, true);
     }
   };
 
@@ -367,11 +369,13 @@ export function AppShell() {
       membersCount: 1,
     };
 
-    setDataState((prev) => ({
-      ...prev,
-      workspaces: [...prev.workspaces, newWs],
+    const nextState: FinanceDataState = {
+      ...dataState,
+      workspaces: [...dataState.workspaces, newWs],
       activeWorkspace: newWs,
-    }));
+    };
+    setDataState(nextState);
+    syncFinanceDataToCloud(nextState, true);
   };
 
   // Join Shared Workspace Handler
@@ -385,25 +389,27 @@ export function AppShell() {
       membersCount: 2,
     };
 
-    setDataState((prev) => ({
-      ...prev,
-      workspaces: [...prev.workspaces, joinedWs],
+    const nextState: FinanceDataState = {
+      ...dataState,
+      workspaces: [...dataState.workspaces, joinedWs],
       activeWorkspace: joinedWs,
-    }));
+    };
+    setDataState(nextState);
+    syncFinanceDataToCloud(nextState, true);
   };
 
   // Delete Workspace Handler
   const handleDeleteWorkspace = (workspaceId: string) => {
-    setDataState((prev) => {
-      const filtered = prev.workspaces.filter((w) => w.id !== workspaceId);
-      if (filtered.length === 0) return prev;
-      const nextActive = prev.activeWorkspace?.id === workspaceId ? filtered[0] : prev.activeWorkspace;
-      return {
-        ...prev,
-        workspaces: filtered,
-        activeWorkspace: nextActive,
-      };
-    });
+    const filtered = dataState.workspaces.filter((w) => w.id !== workspaceId);
+    if (filtered.length === 0) return;
+    const nextActive = dataState.activeWorkspace?.id === workspaceId ? filtered[0] : dataState.activeWorkspace;
+    const nextState: FinanceDataState = {
+      ...dataState,
+      workspaces: filtered,
+      activeWorkspace: nextActive,
+    };
+    setDataState(nextState);
+    syncFinanceDataToCloud(nextState, true);
   };
 
   // Ensure Shared Invite Code
