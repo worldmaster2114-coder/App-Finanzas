@@ -13,13 +13,64 @@ import {
   workspaceJoinRequestsTable,
 } from "@workspace/db";
 import { eq, or, desc, and, isNull } from "drizzle-orm";
+import { readServerStorage, writeServerStorage } from "../lib/serverStorage";
 
 const financeRouter = Router();
 
 // GET /api/finance/state?userId=...&email=...&workspaceId=...
 financeRouter.get("/state", async (req, res) => {
+  const userId = req.query["userId"] as string | undefined;
+  const email = req.query["email"] as string | undefined;
+
+  // --- Fallback to Server Disk Storage if PostgreSQL is not connected ---
   if (!db) {
-    return res.json({ status: "local_only", message: "Database not connected" });
+    const store = readServerStorage();
+    const emailKey = email ? email.toLowerCase().trim() : null;
+    const userRecord = emailKey
+      ? store.users[emailKey]
+      : userId
+      ? Object.values(store.users).find((u: any) => u.id === userId)
+      : null;
+
+    const allWorkspaces = Object.values(store.workspaces);
+    let wsList = allWorkspaces;
+    if (userRecord) {
+      const userWorkspaces = allWorkspaces.filter(
+        (w: any) =>
+          w.ownerId === userRecord.id ||
+          w.ownerId === userRecord.email ||
+          (store.workspaceMembers || []).some((m: any) => m.workspaceId === w.id && m.userId === userRecord.id)
+      );
+      if (userWorkspaces.length > 0) wsList = userWorkspaces;
+    }
+
+    const wsIds = wsList.map((w: any) => w.id);
+    const accounts = Object.values(store.accounts).filter((a: any) => !a.workspaceId || wsIds.includes(a.workspaceId));
+    const categories = Object.values(store.categories);
+    const transactions = Object.values(store.transactions)
+      .filter(
+        (t: any) =>
+          !t.workspaceId ||
+          wsIds.includes(t.workspaceId) ||
+          (userRecord && (t.createdByUserId === userRecord.id || t.createdByUserId === userRecord.email))
+      )
+      .sort((a: any, b: any) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime());
+    const budgets = Object.values(store.budgets).filter((b: any) => !b.workspaceId || wsIds.includes(b.workspaceId));
+    const savingsGoals = Object.values(store.savingsGoals).filter((g: any) => !g.workspaceId || wsIds.includes(g.workspaceId));
+    const recurringTransactions = Object.values(store.recurringTransactions).filter((r: any) => !r.workspaceId || wsIds.includes(r.workspaceId));
+
+    return res.json({
+      status: "synced",
+      user: userRecord || null,
+      workspaces: wsList.length > 0 ? wsList : null,
+      activeWorkspaceId: userRecord?.activeWorkspaceId || wsList[0]?.id || null,
+      accounts: accounts.length > 0 ? accounts : null,
+      categories: categories.length > 0 ? categories : null,
+      transactions,
+      budgets,
+      savingsGoals,
+      recurringTransactions,
+    });
   }
 
   try {
@@ -138,23 +189,84 @@ financeRouter.get("/state", async (req, res) => {
 
 // POST /api/finance/sync
 financeRouter.post("/sync", async (req, res) => {
+  const {
+    accounts,
+    categories,
+    transactions,
+    budgets,
+    savingsGoals,
+    recurringTransactions,
+    user,
+    activeWorkspace,
+    workspaces,
+  } = req.body;
+
+  // Fallback to server disk storage when PostgreSQL is not connected
   if (!db) {
-    return res.json({ status: "local_saved", message: "Database not configured, using local storage" });
+    try {
+      const store = readServerStorage();
+
+      if (user && (user.id || user.email)) {
+        const emailKey = user.email ? user.email.toLowerCase().trim() : user.id;
+        store.users[emailKey] = {
+          ...(store.users[emailKey] || {}),
+          ...user,
+          activeWorkspaceId: activeWorkspace?.id || store.users[emailKey]?.activeWorkspaceId,
+        };
+      }
+
+      const allWorkspaces = Array.isArray(workspaces) && workspaces.length > 0 ? workspaces : activeWorkspace ? [activeWorkspace] : [];
+      for (const ws of allWorkspaces) {
+        if (ws.id) {
+          store.workspaces[ws.id] = { ...(store.workspaces[ws.id] || {}), ...ws };
+        }
+      }
+
+      if (Array.isArray(accounts)) {
+        for (const acc of accounts) {
+          if (acc.id) store.accounts[acc.id] = acc;
+        }
+      }
+
+      if (Array.isArray(categories)) {
+        for (const cat of categories) {
+          if (cat.id) store.categories[cat.id] = cat;
+        }
+      }
+
+      if (Array.isArray(transactions)) {
+        for (const tx of transactions) {
+          if (tx.id) store.transactions[tx.id] = tx;
+        }
+      }
+
+      if (Array.isArray(budgets)) {
+        for (const b of budgets) {
+          if (b.id) store.budgets[b.id] = b;
+        }
+      }
+
+      if (Array.isArray(savingsGoals)) {
+        for (const g of savingsGoals) {
+          if (g.id) store.savingsGoals[g.id] = g;
+        }
+      }
+
+      if (Array.isArray(recurringTransactions)) {
+        for (const r of recurringTransactions) {
+          if (r.id) store.recurringTransactions[r.id] = r;
+        }
+      }
+
+      writeServerStorage(store);
+      return res.json({ status: "synced", success: true, message: "Datos sincronizados en servidor exitosamente" });
+    } catch (err: any) {
+      console.error("[SERVER STORAGE] Error during sync:", err);
+      return res.status(500).json({ error: err.message });
+    }
   }
 
   try {
-    const {
-      accounts,
-      categories,
-      transactions,
-      budgets,
-      savingsGoals,
-      recurringTransactions,
-      user,
-      activeWorkspace,
-      workspaces,
-    } = req.body;
-
     // 1. Sync User if present (safely handle email uniqueness)
     let resolvedUserId = user?.id;
     if (user && (user.id || user.email)) {
@@ -409,7 +521,14 @@ financeRouter.post("/sync", async (req, res) => {
 financeRouter.post("/transaction/delete", async (req, res) => {
   const { id } = req.body;
   if (!id) return res.status(400).json({ error: "id required" });
-  if (!db) return res.json({ success: true, message: "Deleted locally" });
+  if (!db) {
+    const store = readServerStorage();
+    if (store.transactions[id]) {
+      delete store.transactions[id];
+      writeServerStorage(store);
+    }
+    return res.json({ success: true, message: "Transacción eliminada de almacenamiento en servidor" });
+  }
 
   try {
     await db.delete(transactionsTable).where(eq(transactionsTable.id, id));
@@ -423,7 +542,14 @@ financeRouter.post("/transaction/delete", async (req, res) => {
 financeRouter.post("/budget/delete", async (req, res) => {
   const { id } = req.body;
   if (!id) return res.status(400).json({ error: "id required" });
-  if (!db) return res.json({ success: true, message: "Deleted locally" });
+  if (!db) {
+    const store = readServerStorage();
+    if (store.budgets[id]) {
+      delete store.budgets[id];
+      writeServerStorage(store);
+    }
+    return res.json({ success: true, message: "Presupuesto eliminado de almacenamiento en servidor" });
+  }
 
   try {
     await db.delete(budgetsTable).where(eq(budgetsTable.id, id));
