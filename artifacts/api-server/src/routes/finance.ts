@@ -354,6 +354,37 @@ financeRouter.post("/sync", async (req, res) => {
       }
     }
 
+    // 7. Sync Recurring Transactions
+    if (Array.isArray(recurringTransactions) && recurringTransactions.length > 0) {
+      for (const rec of recurringTransactions) {
+        if (!rec.id) continue;
+        await db
+          .insert(recurringTransactionsTable)
+          .values({
+            id: rec.id,
+            workspaceId: rec.workspaceId || activeWorkspace?.id,
+            accountId: rec.accountId,
+            categoryId: rec.categoryId,
+            amount: rec.amount,
+            type: rec.type,
+            frequency: rec.frequency || "monthly",
+            nextExecutionDate: rec.nextExecutionDate,
+            autoApply: rec.autoApply ?? true,
+            note: rec.note || null,
+          })
+          .onConflictDoUpdate({
+            target: recurringTransactionsTable.id,
+            set: {
+              amount: rec.amount,
+              frequency: rec.frequency,
+              nextExecutionDate: rec.nextExecutionDate,
+              autoApply: rec.autoApply,
+              note: rec.note,
+            },
+          });
+      }
+    }
+
     return res.json({ success: true, message: "Datos sincronizados con PostgreSQL exitosamente" });
   } catch (err: any) {
     console.error("[API] Error syncing to PostgreSQL:", err);

@@ -104,8 +104,8 @@ export function AppShell() {
           const remoteActiveId = data.activeWorkspaceId || prev.activeWorkspace?.id;
           const matchedActive = remoteWorkspaces.find((w) => w.id === remoteActiveId) || remoteWorkspaces[0] || prev.activeWorkspace;
 
-          // Merge transactions
-          const remoteTransactions: Transaction[] = Array.isArray(data.transactions)
+          // Merge transactions — only replace if server returned data
+          const remoteTransactions: Transaction[] = Array.isArray(data.transactions) && data.transactions.length > 0
             ? data.transactions
             : prev.transactions;
 
@@ -252,8 +252,9 @@ export function AppShell() {
 
   // Google Login Handler
   const handleGoogleLogin = (googleUserData: Partial<UserProfile>) => {
+    const userId = googleUserData.id || `usr-${Date.now()}`;
     const updatedUser: UserProfile = {
-      id: googleUserData.id || `usr-${Date.now()}`,
+      id: userId,
       googleId: googleUserData.googleId || googleUserData.id,
       email: googleUserData.email || '',
       name: googleUserData.name || 'Usuario',
@@ -263,10 +264,39 @@ export function AppShell() {
       hasCompletedOnboarding: true,
     };
 
-    setDataState((prev) => ({
-      ...prev,
-      user: updatedUser,
-    }));
+    setDataState((prev) => {
+      // Ensure the active workspace is owned by this real user (fix ws-default issue)
+      const existingWorkspaces = prev.workspaces || [];
+      let updatedWorkspaces = existingWorkspaces;
+      let updatedActiveWorkspace = prev.activeWorkspace;
+
+      // If the only workspace is the generic default (not owned by a real user), re-assign it
+      const isGenericDefault =
+        existingWorkspaces.length === 1 &&
+        (existingWorkspaces[0].ownerId === 'usr-default' || existingWorkspaces[0].ownerId === 'default-owner');
+
+      if (isGenericDefault) {
+        const reassigned: Workspace = {
+          ...existingWorkspaces[0],
+          ownerId: userId,
+        };
+        updatedWorkspaces = [reassigned];
+        updatedActiveWorkspace = reassigned;
+      }
+
+      const nextState: FinanceDataState = {
+        ...prev,
+        user: updatedUser,
+        workspaces: updatedWorkspaces,
+        activeWorkspace: updatedActiveWorkspace,
+      };
+
+      // Immediately sync to cloud so PostgreSQL knows this user and workspace
+      syncFinanceDataToCloud(nextState, true);
+
+      return nextState;
+    });
+
     setIsAuthenticated(true);
     setIsOnboardingOpen(false);
 
@@ -289,6 +319,7 @@ export function AppShell() {
       }
     }
   };
+
 
   // User Profile & Configuration Update Handler
   const handleUpdateUser = (updatedUserData: Partial<UserProfile>) => {
