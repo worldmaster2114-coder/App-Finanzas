@@ -167,54 +167,79 @@ financeRouter.post("/sync", async (req, res) => {
       workspaces,
     } = req.body;
 
-    // 1. Sync User if present
+    // 1. Sync User if present (safely handle email uniqueness)
+    let resolvedUserId = user?.id;
     if (user && (user.id || user.email)) {
-      const uId = user.id || `usr-${Date.now()}`;
-      await db
-        .insert(usersTable)
-        .values({
+      const normalizedEmail = user.email ? user.email.toLowerCase().trim() : null;
+      let existingUser = null;
+      if (normalizedEmail) {
+        const found = await db.select().from(usersTable).where(eq(usersTable.email, normalizedEmail)).limit(1);
+        if (found.length > 0) existingUser = found[0];
+      } else if (user.id) {
+        const found = await db.select().from(usersTable).where(eq(usersTable.id, user.id)).limit(1);
+        if (found.length > 0) existingUser = found[0];
+      }
+
+      if (existingUser) {
+        resolvedUserId = existingUser.id;
+        await db
+          .update(usersTable)
+          .set({
+            name: user.name || existingUser.name,
+            picture: user.picture || existingUser.picture,
+            googleId: user.googleId || existingUser.googleId,
+            purpose: user.purpose || existingUser.purpose,
+            useCase: user.useCase || existingUser.useCase,
+            activeWorkspaceId: activeWorkspace?.id || existingUser.activeWorkspaceId,
+          })
+          .where(eq(usersTable.id, existingUser.id));
+      } else {
+        const uId = user.id || `usr-${Date.now()}`;
+        resolvedUserId = uId;
+        await db.insert(usersTable).values({
           id: uId,
           googleId: user.googleId,
-          email: user.email ? user.email.toLowerCase().trim() : `user-${uId}@grupowalnut.com`,
+          email: normalizedEmail || `user-${uId}@grupowalnut.com`,
           name: user.name || "Usuario",
           picture: user.picture,
           purpose: user.purpose,
-          useCase: user.useCase,
+          useCase: user.useCase || "personal",
           activeWorkspaceId: activeWorkspace?.id,
-        })
-        .onConflictDoUpdate({
-          target: usersTable.id,
-          set: {
-            name: user.name,
-            picture: user.picture,
-            purpose: user.purpose,
-            useCase: user.useCase,
-            activeWorkspaceId: activeWorkspace?.id,
-          },
         });
+      }
     }
 
-    // 2. Sync all Workspaces if present
+    // 2. Sync all Workspaces if present (safely handle inviteCode uniqueness)
     const allWorkspaces = Array.isArray(workspaces) && workspaces.length > 0 ? workspaces : activeWorkspace ? [activeWorkspace] : [];
     for (const ws of allWorkspaces) {
       if (!ws.id) continue;
-      await db
-        .insert(workspacesTable)
-        .values({
+      const wsOwnerId = ws.ownerId && ws.ownerId !== "usr-default" && ws.ownerId !== "default-owner" ? ws.ownerId : (resolvedUserId || "usr-default");
+      const existingWs = await db.select().from(workspacesTable).where(eq(workspacesTable.id, ws.id)).limit(1);
+      if (existingWs.length > 0) {
+        await db
+          .update(workspacesTable)
+          .set({
+            name: ws.name || existingWs[0].name,
+            type: ws.type || existingWs[0].type,
+            inviteCode: ws.inviteCode || existingWs[0].inviteCode,
+            ownerId: wsOwnerId || existingWs[0].ownerId,
+          })
+          .where(eq(workspacesTable.id, ws.id));
+      } else {
+        let code = ws.inviteCode || Math.random().toString(36).substring(2, 8).toUpperCase();
+        const codeConflict = await db.select().from(workspacesTable).where(eq(workspacesTable.inviteCode, code)).limit(1);
+        if (codeConflict.length > 0 && codeConflict[0].id !== ws.id) {
+          code = Math.random().toString(36).substring(2, 8).toUpperCase();
+        }
+
+        await db.insert(workspacesTable).values({
           id: ws.id,
           name: ws.name || "Mi Espacio",
           type: ws.type || "personal",
-          inviteCode: ws.inviteCode || Math.random().toString(36).substring(2, 8).toUpperCase(),
-          ownerId: ws.ownerId || user?.id || "usr-default",
-        })
-        .onConflictDoUpdate({
-          target: workspacesTable.id,
-          set: {
-            name: ws.name,
-            type: ws.type || "personal",
-            inviteCode: ws.inviteCode,
-          },
+          inviteCode: code,
+          ownerId: wsOwnerId,
         });
+      }
     }
 
     // 3. Sync Accounts
