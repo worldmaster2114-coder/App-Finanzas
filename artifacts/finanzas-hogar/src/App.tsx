@@ -104,24 +104,45 @@ export function AppShell() {
           const remoteActiveId = data.activeWorkspaceId || prev.activeWorkspace?.id;
           const matchedActive = remoteWorkspaces.find((w) => w.id === remoteActiveId) || remoteWorkspaces[0] || prev.activeWorkspace;
 
-          // Merge transactions — only replace if server returned data
-          const remoteTransactions: Transaction[] = Array.isArray(data.transactions) && data.transactions.length > 0
-            ? data.transactions
-            : prev.transactions;
+          // Merge remote transactions with local ones by unique ID
+          let remoteTransactions: Transaction[];
+          if (Array.isArray(data.transactions)) {
+            const txMap = new Map<string, Transaction>();
+            data.transactions.forEach((tx: Transaction) => txMap.set(tx.id, tx));
+            prev.transactions.forEach((tx: Transaction) => {
+              if (!txMap.has(tx.id)) txMap.set(tx.id, tx);
+            });
+            remoteTransactions = Array.from(txMap.values()).sort(
+              (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+            );
+          } else {
+            remoteTransactions = prev.transactions;
+          }
 
-          // Merge accounts — only replace if server returned data
+          // Merge accounts
           const remoteAccounts = Array.isArray(data.accounts) && data.accounts.length > 0
             ? data.accounts
             : prev.accounts;
 
-          // Merge budgets, goals, recurring
-          const remoteBudgets = Array.isArray(data.budgets) && data.budgets.length > 0 ? data.budgets : prev.budgets;
+          // Merge budgets by category/id
+          let remoteBudgets: Budget[];
+          if (Array.isArray(data.budgets)) {
+            const bMap = new Map<string, Budget>();
+            data.budgets.forEach((b: Budget) => bMap.set(b.id, b));
+            prev.budgets.forEach((b: Budget) => {
+              if (!bMap.has(b.id)) bMap.set(b.id, b);
+            });
+            remoteBudgets = Array.from(bMap.values());
+          } else {
+            remoteBudgets = prev.budgets;
+          }
+
           const remoteGoals = Array.isArray(data.savingsGoals) && data.savingsGoals.length > 0 ? data.savingsGoals : prev.savingsGoals;
           const remoteRecurring = Array.isArray(data.recurringTransactions) && data.recurringTransactions.length > 0
             ? data.recurringTransactions
             : prev.recurringTransactions;
 
-          // Merge categories — only replace if server returned data
+          // Merge categories
           const remoteCategories = Array.isArray(data.categories) && data.categories.length > 0
             ? data.categories
             : prev.categories;

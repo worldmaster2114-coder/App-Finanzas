@@ -12,7 +12,7 @@ import {
   workspaceMembersTable,
   workspaceJoinRequestsTable,
 } from "@workspace/db";
-import { eq, or, desc, and } from "drizzle-orm";
+import { eq, or, desc, and, isNull } from "drizzle-orm";
 
 const financeRouter = Router();
 
@@ -56,7 +56,11 @@ financeRouter.get("/state", async (req, res) => {
     const owned = await db
       .select()
       .from(workspacesTable)
-      .where(or(eq(workspacesTable.ownerId, userRecord.id), eq(workspacesTable.ownerId, userRecord.email)));
+      .where(or(
+        eq(workspacesTable.ownerId, userRecord.id),
+        eq(workspacesTable.ownerId, userRecord.email),
+        userRecord.activeWorkspaceId ? eq(workspacesTable.id, userRecord.activeWorkspaceId) : eq(workspacesTable.ownerId, userRecord.id)
+      ));
 
     const memberRows = await db
       .select()
@@ -77,56 +81,40 @@ financeRouter.get("/state", async (req, res) => {
     // --- 3. Determine which workspace IDs belong to this user ---
     const wsIds: string[] = workspaces.map((w) => w.id);
 
-    // If user has no workspaces yet, return empty data (NOT global data)
-    if (wsIds.length === 0) {
-      return res.json({
-        status: "synced",
-        user: userRecord,
-        workspaces: [],
-        activeWorkspaceId: null,
-        accounts: [],
-        categories: [],
-        transactions: [],
-        budgets: [],
-        savingsGoals: [],
-        recurringTransactions: [],
-      });
-    }
+    // --- 4. Fetch all data SCOPED to user's workspaces & defaults ---
+    const wsFilter = (col: any) =>
+      wsIds.length > 0
+        ? or(...wsIds.map((id) => eq(col, id)), isNull(col))
+        : isNull(col);
 
-    // --- 4. Fetch all data SCOPED to user's workspaces ---
     const [accounts, categories, transactions, budgets, savingsGoals, recurringTransactions] = await Promise.all([
       db.select().from(accountsTable).where(
-        wsIds.length === 1
-          ? eq(accountsTable.workspaceId, wsIds[0])
-          : or(...wsIds.map((id) => eq(accountsTable.workspaceId, id)))
+        wsIds.length > 0
+          ? or(...wsIds.map((id) => eq(accountsTable.workspaceId, id)), isNull(accountsTable.workspaceId), eq(accountsTable.workspaceId, "ws-default"))
+          : isNull(accountsTable.workspaceId)
       ),
       db.select().from(categoriesTable).where(
-        wsIds.length === 1
-          ? eq(categoriesTable.workspaceId, wsIds[0])
-          : or(...wsIds.map((id) => eq(categoriesTable.workspaceId, id)))
+        wsIds.length > 0
+          ? or(...wsIds.map((id) => eq(categoriesTable.workspaceId, id)), eq(categoriesTable.isDefault, true), isNull(categoriesTable.workspaceId))
+          : or(eq(categoriesTable.isDefault, true), isNull(categoriesTable.workspaceId))
       ),
       db.select().from(transactionsTable)
         .where(
-          wsIds.length === 1
-            ? eq(transactionsTable.workspaceId, wsIds[0])
-            : or(...wsIds.map((id) => eq(transactionsTable.workspaceId, id)))
+          wsIds.length > 0
+            ? or(
+                ...wsIds.map((id) => eq(transactionsTable.workspaceId, id)),
+                eq(transactionsTable.createdByUserId, userRecord.id),
+                eq(transactionsTable.createdByUserId, userRecord.email)
+              )
+            : or(
+                eq(transactionsTable.createdByUserId, userRecord.id),
+                eq(transactionsTable.createdByUserId, userRecord.email)
+              )
         )
         .orderBy(desc(transactionsTable.createdAt)),
-      db.select().from(budgetsTable).where(
-        wsIds.length === 1
-          ? eq(budgetsTable.workspaceId, wsIds[0])
-          : or(...wsIds.map((id) => eq(budgetsTable.workspaceId, id)))
-      ),
-      db.select().from(savingsGoalsTable).where(
-        wsIds.length === 1
-          ? eq(savingsGoalsTable.workspaceId, wsIds[0])
-          : or(...wsIds.map((id) => eq(savingsGoalsTable.workspaceId, id)))
-      ),
-      db.select().from(recurringTransactionsTable).where(
-        wsIds.length === 1
-          ? eq(recurringTransactionsTable.workspaceId, wsIds[0])
-          : or(...wsIds.map((id) => eq(recurringTransactionsTable.workspaceId, id)))
-      ),
+      db.select().from(budgetsTable).where(wsFilter(budgetsTable.workspaceId)),
+      db.select().from(savingsGoalsTable).where(wsFilter(savingsGoalsTable.workspaceId)),
+      db.select().from(recurringTransactionsTable).where(wsFilter(recurringTransactionsTable.workspaceId)),
     ]);
 
     return res.json({
