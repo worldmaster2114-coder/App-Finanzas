@@ -146,16 +146,86 @@ export function DashboardAnalytics({
     return { needs, wants, savings, needsPct, wantsPct, savingsPct };
   }, [monthTransactions, categories, monthlyIncome]);
 
+  // Quick month selectors
+  const handleQuickPeriod = (type: 'this_month' | 'prev_month' | 'quarter') => {
+    const current = new Date();
+    if (type === 'this_month') {
+      onMonthChange(current.getMonth());
+      onYearChange(current.getFullYear());
+    } else if (type === 'prev_month') {
+      const prevDate = new Date(current.getFullYear(), current.getMonth() - 1, 1);
+      onMonthChange(prevDate.getMonth());
+      onYearChange(prevDate.getFullYear());
+    }
+  };
+
+  // Smart 50-30-20 Financial Health Advice
+  const financialAdvice = useMemo(() => {
+    if (monthlyIncome <= 0) {
+      return {
+        type: 'info',
+        title: 'Registra tus ingresos',
+        message: 'Añade tu salario o ingresos del mes para que el motor 50-30-20 analice tu salud financiera.',
+      };
+    }
+    if (rule503020.needsPct > 50) {
+      return {
+        type: 'warning',
+        title: `Gastos de Necesidad al ${rule503020.needsPct}% (Supera el 50%)`,
+        message: `Tus necesidades consumen más de la mitad de tus ingresos (${formatMoney(rule503020.needs)}). Revisa gastos fijos o renegocia servicios para liberar liquidez.`,
+      };
+    }
+    if (rule503020.wantsPct > 30) {
+      return {
+        type: 'warning',
+        title: `Ocio y Deseos al ${rule503020.wantsPct}% (Supera el 30%)`,
+        message: `Estás destinando ${formatMoney(rule503020.wants)} a deseos. Intenta reducir salidas o compras secundarias para proteger tu ahorro.`,
+      };
+    }
+    if (rule503020.savingsPct >= 20) {
+      return {
+        type: 'success',
+        title: `¡Excelente Salud Financiera! (${rule503020.savingsPct}% de Ahorro)`,
+        message: `Cumples la regla de oro: estás ahorrando ${formatMoney(rule503020.savings)} este mes. ¡Buen momento para abonar a tu Bóveda de Ahorros!`,
+      };
+    }
+    return {
+      type: 'neutral',
+      title: `Balance equilibrado (${rule503020.savingsPct}% ahorro)`,
+      message: `Tus gastos están en rango, pero podrías ajustar pequeños detalles para alcanzar el 20% de ahorro sugerido.`,
+    };
+  }, [monthlyIncome, rule503020]);
+
   return (
     <div className="space-y-6">
-      {/* Month / Year Selector Header */}
+      {/* Month / Year Selector Header with Quick Filter Chips */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-border/60 pb-4">
         <div>
           <h2 className="font-serif text-2xl font-bold tracking-tight text-foreground">Analítica Visual</h2>
           <p className="text-xs text-muted-foreground">Monitorea tu balance consolidado, flujo de caja y distribución de gastos.</p>
         </div>
 
-        <div className="flex items-center gap-2.5 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Quick period selectors */}
+          <div className="flex items-center gap-1 bg-secondary/50 p-1 rounded-xl border border-border/60">
+            <button
+              onClick={() => handleQuickPeriod('this_month')}
+              className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition ${
+                selectedMonth === new Date().getMonth() && selectedYear === new Date().getFullYear()
+                  ? 'bg-primary text-primary-foreground shadow-xs'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              Este Mes
+            </button>
+            <button
+              onClick={() => handleQuickPeriod('prev_month')}
+              className="px-2.5 py-1 text-[11px] font-bold rounded-lg text-muted-foreground hover:text-foreground transition"
+            >
+              Mes Anterior
+            </button>
+          </div>
+
           {onOpenShareHousehold && (
             <button
               onClick={onOpenShareHousehold}
@@ -186,6 +256,25 @@ export function DashboardAnalytics({
                 <option key={y} value={y}>{y}</option>
               ))}
             </select>
+          </div>
+        </div>
+      </div>
+
+      {/* Smart Financial Diagnostic Alert */}
+      <div className={`rounded-2xl border p-4 shadow-xs transition ${
+        financialAdvice.type === 'success'
+          ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-950 dark:text-emerald-200'
+          : financialAdvice.type === 'warning'
+          ? 'border-amber-500/30 bg-amber-500/10 text-amber-950 dark:text-amber-200'
+          : 'border-blue-500/30 bg-blue-500/10 text-blue-950 dark:text-blue-200'
+      }`}>
+        <div className="flex items-start gap-3">
+          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-background/80 shadow-xs">
+            {financialAdvice.type === 'success' ? '🏆' : financialAdvice.type === 'warning' ? '⚠️' : '💡'}
+          </span>
+          <div className="min-w-0 flex-1">
+            <h4 className="text-xs font-extrabold">{financialAdvice.title}</h4>
+            <p className="mt-0.5 text-[11px] opacity-90 leading-relaxed">{financialAdvice.message}</p>
           </div>
         </div>
       </div>

@@ -133,8 +133,16 @@ export function TransactionHistory({
 
       {/* List */}
       <div className="rounded-2xl border border-border bg-card p-4 shadow-xs">
-        <div className="flex items-center justify-between pb-3 border-b border-border/50 px-2 text-xs font-bold text-muted-foreground">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-border/50 px-2 gap-2 text-xs font-bold text-muted-foreground">
           <span>{filtered.length} registros encontrados</span>
+          <div className="flex items-center gap-3 text-[11px]">
+            <span className="text-emerald-600 dark:text-emerald-400 font-mono">
+              + {formatMoney(filtered.filter((t) => t.type === 'income').reduce((s, t) => s + t.amount, 0))}
+            </span>
+            <span className="text-destructive font-mono">
+              - {formatMoney(filtered.filter((t) => t.type === 'expense').reduce((s, t) => s + t.amount, 0))}
+            </span>
+          </div>
         </div>
 
         <div className="divide-y divide-border/60">

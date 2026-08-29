@@ -959,10 +959,64 @@ export function AppShell() {
         </footer>
       </main>
 
-      {/* Mobile Floating Action Button (FAB - Monefy Style) */}
+      {/* Modern Mobile Bottom Navigation Bar (App Nativa Style) */}
+      <nav className="fixed bottom-0 left-0 right-0 z-30 flex h-16 items-center justify-around border-t border-border/80 bg-card/95 backdrop-blur-md px-2 md:hidden">
+        <button
+          onClick={() => setActiveTab('dashboard')}
+          className={`flex flex-col items-center justify-center gap-1 flex-1 py-1 transition ${
+            activeTab === 'dashboard' ? 'text-primary font-bold' : 'text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <LayoutDashboard size={19} />
+          <span className="text-[10px] tracking-tight">Resumen</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('budgets')}
+          className={`flex flex-col items-center justify-center gap-1 flex-1 py-1 transition ${
+            activeTab === 'budgets' ? 'text-primary font-bold' : 'text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <PieChartIcon size={19} />
+          <span className="text-[10px] tracking-tight">Presupuesto</span>
+        </button>
+
+        {/* Central Prominent Quick Entry Button */}
+        <div className="relative -top-3 flex items-center justify-center px-1">
+          <button
+            onClick={() => setIsFastEntryOpen(true)}
+            className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-lg shadow-primary/30 transition hover:scale-105 active:scale-95"
+            title="Registro Rápido (1 toque)"
+          >
+            <Plus size={24} strokeWidth={2.5} />
+          </button>
+        </div>
+
+        <button
+          onClick={() => setActiveTab('goals')}
+          className={`flex flex-col items-center justify-center gap-1 flex-1 py-1 transition ${
+            activeTab === 'goals' ? 'text-primary font-bold' : 'text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <PiggyBank size={19} />
+          <span className="text-[10px] tracking-tight">Bóveda</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('history')}
+          className={`flex flex-col items-center justify-center gap-1 flex-1 py-1 transition ${
+            activeTab === 'history' ? 'text-primary font-bold' : 'text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <History size={19} />
+          <span className="text-[10px] tracking-tight">Historial</span>
+        </button>
+      </nav>
+
+      {/* Desktop Floating Action Button (FAB) */}
       <button
         onClick={() => setIsFastEntryOpen(true)}
-        className="fixed bottom-6 right-6 z-30 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-xl transition hover:scale-105 active:scale-95 md:bottom-8 md:right-8"
+        className="hidden md:flex fixed bottom-8 right-8 z-30 h-14 w-14 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-xl transition hover:scale-105 active:scale-95"
         title="Registro Rápido (1 toque)"
       >
         <Plus size={28} strokeWidth={2.5} />
