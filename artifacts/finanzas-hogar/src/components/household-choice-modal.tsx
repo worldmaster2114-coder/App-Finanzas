@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { UserProfile, Workspace } from '@/types/finance';
 import {
   HeartHandshake,
@@ -31,10 +31,34 @@ export function HouseholdChoiceModal({
   onContinuePersonal,
   activeWorkspace,
 }: HouseholdChoiceModalProps) {
-  const [selectedOption, setSelectedOption] = useState<'daniel' | 'custom_code' | 'personal'>('daniel');
+  const [inviteData, setInviteData] = useState<{ code: string | null; owner: string; workspace: string }>({
+    code: null,
+    owner: '',
+    workspace: '',
+  });
+
+  const [selectedOption, setSelectedOption] = useState<'invite' | 'code' | 'personal'>('invite');
   const [customCode, setCustomCode] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+
+  // Read invite query params from URL on open
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const code = params.get('join') || params.get('code');
+      const owner = params.get('owner') || 'Tu Pareja o Familiar';
+      const workspace = params.get('workspace') || 'Hogar Compartido';
+
+      if (code) {
+        setInviteData({ code: code.toUpperCase(), owner, workspace });
+        setSelectedOption('invite');
+      } else {
+        setInviteData({ code: null, owner: '', workspace: '' });
+        setSelectedOption('code');
+      }
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -45,13 +69,13 @@ export function HouseholdChoiceModal({
     setIsLoading(true);
 
     try {
-      if (selectedOption === 'daniel') {
-        await onJoinHousehold('503020');
+      if (selectedOption === 'invite' && inviteData.code) {
+        await onJoinHousehold(inviteData.code);
         onClose();
-      } else if (selectedOption === 'custom_code') {
+      } else if (selectedOption === 'code') {
         const clean = customCode.trim().toUpperCase();
         if (!clean) {
-          setError('Ingresa el código de 6 dígitos');
+          setError('Por favor ingresa el código de 6 dígitos que te compartieron');
           setIsLoading(false);
           return;
         }
@@ -62,7 +86,7 @@ export function HouseholdChoiceModal({
         onClose();
       }
     } catch (err: any) {
-      setError(err?.message || 'Error al vincular el hogar. Intenta nuevamente.');
+      setError(err?.message || 'No se encontró un hogar con ese código. Verifica con tu pareja.');
     } finally {
       setIsLoading(false);
     }
@@ -83,10 +107,12 @@ export function HouseholdChoiceModal({
               <Sparkles size={13} /> Bienvenido(a), {firstName}
             </div>
             <h2 className="font-serif text-2xl font-bold tracking-tight text-foreground">
-              ¿Cómo deseas usar tu cuenta?
+              ¿Cómo deseas comenzar?
             </h2>
             <p className="text-xs text-muted-foreground">
-              Selecciona si deseas vincularte al hogar compartido o llevar una cuenta independiente.
+              {inviteData.code
+                ? `Te han invitado a sincronizar tus gastos con "${inviteData.workspace}".`
+                : 'Únete a un hogar con el código de tu pareja o crea tu propio espacio financiero.'}
             </p>
           </div>
 
@@ -101,44 +127,97 @@ export function HouseholdChoiceModal({
         {/* Options */}
         <div className="space-y-3.5">
           
-          {/* OPTION 1: Join Daniel's House (Recommended for spouse / household) */}
+          {/* OPTION A: Join Invited Household if URL has code */}
+          {inviteData.code && (
+            <div
+              onClick={() => setSelectedOption('invite')}
+              className={`cursor-pointer rounded-2xl border p-4 sm:p-5 transition relative ${
+                selectedOption === 'invite'
+                  ? 'border-purple-500 bg-gradient-to-r from-purple-500/15 via-card to-purple-500/5 shadow-md ring-2 ring-purple-500/20'
+                  : 'border-border bg-card/60 hover:bg-secondary/40'
+              }`}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-start gap-3.5">
+                  <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-purple-500/20 text-purple-400 shadow-xs">
+                    <Home size={22} />
+                  </span>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-serif text-base font-bold text-foreground">
+                        Unirme a "{inviteData.workspace}"
+                      </h3>
+                      <span className="rounded-full bg-purple-500/20 border border-purple-500/30 px-2 py-0.5 text-[9px] font-extrabold text-purple-300 uppercase tracking-wider">
+                        Invitación Activa
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+                      Sincroniza tus finanzas con <strong>{inviteData.owner} (Código: {inviteData.code})</strong>. Ambos compartirán presupuestos y gastos en vivo.
+                    </p>
+                  </div>
+                </div>
+
+                <div className={`grid h-6 w-6 shrink-0 place-items-center rounded-full border transition ${
+                  selectedOption === 'invite' ? 'border-purple-500 bg-purple-500 text-white' : 'border-muted-foreground/40'
+                }`}>
+                  {selectedOption === 'invite' && <Check size={14} strokeWidth={3} />}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* OPTION B: Join with 6-Digit Code */}
           <div
-            onClick={() => setSelectedOption('daniel')}
+            onClick={() => setSelectedOption('code')}
             className={`cursor-pointer rounded-2xl border p-4 sm:p-5 transition relative ${
-              selectedOption === 'daniel'
+              selectedOption === 'code'
                 ? 'border-purple-500 bg-gradient-to-r from-purple-500/15 via-card to-purple-500/5 shadow-md ring-2 ring-purple-500/20'
                 : 'border-border bg-card/60 hover:bg-secondary/40'
             }`}
           >
             <div className="flex items-start justify-between gap-3">
               <div className="flex items-start gap-3.5">
-                <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-purple-500/20 text-purple-400 shadow-xs">
-                  <Home size={22} />
+                <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-purple-500/15 text-purple-400 shadow-xs">
+                  <KeyRound size={22} />
                 </span>
                 <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-serif text-base font-bold text-foreground">
-                      Asociarme a la Casa de Daniel
-                    </h3>
-                    <span className="rounded-full bg-purple-500/20 border border-purple-500/30 px-2 py-0.5 text-[9px] font-extrabold text-purple-300 uppercase tracking-wider">
-                      Recomendado
-                    </span>
-                  </div>
+                  <h3 className="font-serif text-base font-bold text-foreground">
+                    Unirme a un Hogar con Código de 6 Dígitos
+                  </h3>
                   <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-                    Sincroniza tus finanzas en vivo con el espacio de <strong>Daniel (Código: 503020)</strong>. Ambos verán los gastos del hogar, presupuestos y balances en tiempo real.
+                    Si tu pareja o familiar te pasó su código único de invitación, escríbelo aquí para sincronizarse.
                   </p>
                 </div>
               </div>
 
               <div className={`grid h-6 w-6 shrink-0 place-items-center rounded-full border transition ${
-                selectedOption === 'daniel' ? 'border-purple-500 bg-purple-500 text-white' : 'border-muted-foreground/40'
+                selectedOption === 'code' ? 'border-purple-500 bg-purple-500 text-white' : 'border-muted-foreground/40'
               }`}>
-                {selectedOption === 'daniel' && <Check size={14} strokeWidth={3} />}
+                {selectedOption === 'code' && <Check size={14} strokeWidth={3} />}
               </div>
             </div>
+
+            {selectedOption === 'code' && (
+              <div className="mt-3.5 pt-3.5 border-t border-purple-500/30 space-y-2 animate-in fade-in-50">
+                <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground block">
+                  Código de Invitación del Hogar:
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    maxLength={8}
+                    placeholder="Ej. 503020 o DAN789"
+                    value={customCode}
+                    onChange={(e) => setCustomCode(e.target.value.toUpperCase())}
+                    className="h-11 w-full rounded-xl border border-purple-500/50 bg-background px-3 text-sm font-mono font-extrabold uppercase tracking-widest outline-none focus:border-purple-400"
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                </div>
+              </div>
+            )}
           </div>
 
-          {/* OPTION 2: Independent / Personal Account */}
+          {/* OPTION C: Independent / Personal Space */}
           <div
             onClick={() => setSelectedOption('personal')}
             className={`cursor-pointer rounded-2xl border p-4 sm:p-5 transition relative ${
@@ -154,10 +233,10 @@ export function HouseholdChoiceModal({
                 </span>
                 <div>
                   <h3 className="font-serif text-base font-bold text-foreground">
-                    Cuenta Independiente (Personal)
+                    Crear mi Propio Espacio (Personal)
                   </h3>
                   <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-                    Gestiona tus finanzas, ingresos y gastos de forma totalmente privada, individual y separada de cualquier otro usuario.
+                    Gestiona tus finanzas de manera 100% privada e individual. Tendrás tu propio código único si luego deseas invitar a alguien.
                   </p>
                 </div>
               </div>
@@ -168,52 +247,6 @@ export function HouseholdChoiceModal({
                 {selectedOption === 'personal' && <Check size={14} strokeWidth={3} />}
               </div>
             </div>
-          </div>
-
-          {/* OPTION 3: Join other household code */}
-          <div
-            onClick={() => setSelectedOption('custom_code')}
-            className={`cursor-pointer rounded-2xl border p-4 sm:p-4.5 transition relative ${
-              selectedOption === 'custom_code'
-                ? 'border-primary bg-primary/10 shadow-md ring-2 ring-primary/20'
-                : 'border-border bg-card/60 hover:bg-secondary/40'
-            }`}
-          >
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-3.5">
-                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-primary/15 text-primary shadow-xs">
-                  <KeyRound size={20} />
-                </span>
-                <div>
-                  <h3 className="text-xs font-bold text-foreground">
-                    Unirme con otro código de invitación
-                  </h3>
-                  <p className="text-[11px] text-muted-foreground">
-                    Si tienes un código de 6 dígitos diferente.
-                  </p>
-                </div>
-              </div>
-
-              <div className={`grid h-6 w-6 shrink-0 place-items-center rounded-full border transition ${
-                selectedOption === 'custom_code' ? 'border-primary bg-primary text-primary-foreground' : 'border-muted-foreground/40'
-              }`}>
-                {selectedOption === 'custom_code' && <Check size={14} strokeWidth={3} />}
-              </div>
-            </div>
-
-            {selectedOption === 'custom_code' && (
-              <div className="mt-3 pt-3 border-t border-border/60 animate-in fade-in-50">
-                <input
-                  type="text"
-                  maxLength={6}
-                  placeholder="Ej. AB12CD"
-                  value={customCode}
-                  onChange={(e) => setCustomCode(e.target.value.toUpperCase())}
-                  className="h-10 w-full rounded-xl border border-input bg-background px-3 text-xs font-mono font-bold uppercase tracking-widest outline-none focus:border-primary"
-                  onClick={(e) => e.stopPropagation()}
-                />
-              </div>
-            )}
           </div>
 
         </div>
@@ -228,26 +261,24 @@ export function HouseholdChoiceModal({
             onClick={handleConfirm}
             disabled={isLoading}
             className={`w-full h-12 rounded-2xl font-bold text-sm text-white shadow-md transition flex items-center justify-center gap-2 ${
-              selectedOption === 'daniel'
+              selectedOption === 'invite' || selectedOption === 'code'
                 ? 'bg-purple-600 hover:bg-purple-700'
-                : selectedOption === 'personal'
-                ? 'bg-blue-600 hover:bg-blue-700'
-                : 'bg-primary text-primary-foreground hover:brightness-105'
+                : 'bg-blue-600 hover:bg-blue-700'
             }`}
           >
             {isLoading ? (
               'Sincronizando...'
-            ) : selectedOption === 'daniel' ? (
+            ) : selectedOption === 'invite' ? (
               <>
-                <HeartHandshake size={18} /> Confirmar y Entrar a la Casa de Daniel
+                <HeartHandshake size={18} /> Vincularme a {inviteData.workspace || 'este Hogar'}
               </>
-            ) : selectedOption === 'personal' ? (
+            ) : selectedOption === 'code' ? (
               <>
-                <User size={18} /> Continuar con Cuenta Independiente
+                <KeyRound size={18} /> Validar Código y Entrar al Hogar
               </>
             ) : (
               <>
-                Vincular y Continuar <ArrowRight size={18} />
+                <User size={18} /> Continuar con Mi Espacio Personal
               </>
             )}
           </button>

@@ -739,11 +739,18 @@ financeRouter.post("/join-direct", async (req, res) => {
       });
     }
 
-    // Fetch workspace data for instant hydration
-    const wsFilter = (col: any) => or(eq(col, workspace.id), eq(col, "ws-default"), isNull(col));
+    // Fetch workspace data for instant hydration (strictly isolated per household)
+    const wsFilter = (col: any) =>
+      workspace.id === "ws-default"
+        ? or(eq(col, workspace.id), eq(col, "ws-default"), isNull(col))
+        : eq(col, workspace.id);
 
     const accounts = await db.select().from(accountsTable).where(wsFilter(accountsTable.workspaceId));
-    const categories = await db.select().from(categoriesTable).where(wsFilter(categoriesTable.workspaceId));
+    const categories = await db.select().from(categoriesTable).where(
+      workspace.id === "ws-default"
+        ? or(eq(categoriesTable.workspaceId, workspace.id), eq(categoriesTable.isDefault, true), isNull(categoriesTable.workspaceId))
+        : or(eq(categoriesTable.workspaceId, workspace.id), eq(categoriesTable.isDefault, true))
+    );
     const transactions = await db
       .select()
       .from(transactionsTable)
