@@ -1156,6 +1156,7 @@ export function AppShell() {
         workspace={activeWorkspace}
         currentUser={dataState.user}
         onEnsureSharedCode={handleEnsureSharedCode}
+        onJoinSharedWorkspace={handleJoinSharedWorkspace}
       />
 
       <Toaster />
