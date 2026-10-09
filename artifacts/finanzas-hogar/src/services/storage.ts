@@ -48,6 +48,13 @@ export function getInitialSeedData(): FinanceDataState {
     budgets: [],
     savingsGoals: [],
     recurringTransactions: [],
+    debts: [],
+    budgetRuleConfig: {
+      strategy: '50-30-20',
+      needs: 50,
+      wants: 30,
+      savings: 20,
+    },
   };
 }
 
@@ -66,6 +73,8 @@ export function loadFinanceData(): FinanceDataState {
         const safeBudgets = Array.isArray(parsed.budgets) ? parsed.budgets : [];
         const safeSavingsGoals = Array.isArray(parsed.savingsGoals) ? parsed.savingsGoals : [];
         const safeRecurring = Array.isArray(parsed.recurringTransactions) ? parsed.recurringTransactions : [];
+        const safeDebts = Array.isArray(parsed.debts) ? parsed.debts : [];
+        const safeRuleConfig = parsed.budgetRuleConfig || initial.budgetRuleConfig;
 
         return {
           user: parsed.user || null,
@@ -77,6 +86,8 @@ export function loadFinanceData(): FinanceDataState {
           budgets: safeBudgets,
           savingsGoals: safeSavingsGoals,
           recurringTransactions: safeRecurring,
+          debts: safeDebts,
+          budgetRuleConfig: safeRuleConfig,
         };
       }
     }

@@ -19,7 +19,7 @@ import { JoinRequestBanner } from '@/components/join-request-banner';
 import { ShareHouseholdModal } from '@/components/share-household-modal';
 import { UserAvatar } from '@/components/user-avatar';
 import { loadFinanceData, saveFinanceData, saveToLocalStorage, syncFinanceDataToCloud } from '@/services/storage';
-import { Budget, FinanceDataState, RecurringTransaction, SavingsGoal, Transaction, UserProfile, UserPurpose, UserUseCase, Workspace } from '@/types/finance';
+import { Budget, BudgetRuleConfig, DebtItem, FinanceDataState, RecurringTransaction, SavingsGoal, Transaction, UserProfile, UserPurpose, UserUseCase, Workspace } from '@/types/finance';
 import {
   Wallet,
   LayoutDashboard,
@@ -621,6 +621,51 @@ export function AppShell() {
     syncFinanceDataToCloud(nextState, true);
   };
 
+  // Update Budget Rule Handler
+  const handleUpdateBudgetRule = (ruleConfig: BudgetRuleConfig) => {
+    const updatedActiveWorkspace: Workspace = {
+      ...activeWorkspace,
+      budgetRule: ruleConfig.strategy,
+      customRuleConfig: { needs: ruleConfig.needs, wants: ruleConfig.wants, savings: ruleConfig.savings },
+    };
+    const updatedWorkspaces = dataState.workspaces.map((w) =>
+      w.id === updatedActiveWorkspace.id ? updatedActiveWorkspace : w
+    );
+    const nextState: FinanceDataState = {
+      ...dataState,
+      workspaces: updatedWorkspaces,
+      activeWorkspace: updatedActiveWorkspace,
+      budgetRuleConfig: ruleConfig,
+    };
+    setDataState(nextState);
+    syncFinanceDataToCloud(nextState, true);
+  };
+
+  // Add Debt Handler (Snowball)
+  const handleAddDebt = (debtData: Omit<DebtItem, 'id'>) => {
+    const newDebt: DebtItem = {
+      ...debtData,
+      id: `debt-${Date.now()}`,
+      workspaceId: activeWorkspace.id,
+    };
+    const nextState = {
+      ...dataState,
+      debts: [newDebt, ...(dataState.debts || [])],
+    };
+    setDataState(nextState);
+    syncFinanceDataToCloud(nextState, true);
+  };
+
+  // Delete Debt Handler
+  const handleDeleteDebt = (debtId: string) => {
+    const nextState = {
+      ...dataState,
+      debts: (dataState.debts || []).filter((d) => d.id !== debtId),
+    };
+    setDataState(nextState);
+    syncFinanceDataToCloud(nextState, true);
+  };
+
   const navItems = [
     { id: 'dashboard', label: 'Resumen y Analítica', icon: LayoutDashboard },
     { id: 'goals', label: 'Bóveda de Ahorros', icon: PiggyBank },
@@ -902,6 +947,14 @@ export function AppShell() {
             accounts={dataState.accounts}
             categories={dataState.categories}
             transactions={dataState.transactions}
+            recurringTransactions={dataState.recurringTransactions}
+            budgetRuleConfig={dataState.budgetRuleConfig || {
+              strategy: (activeWorkspace?.budgetRule as any) || '50-30-20',
+              needs: activeWorkspace?.customRuleConfig?.needs || 50,
+              wants: activeWorkspace?.customRuleConfig?.wants || 30,
+              savings: activeWorkspace?.customRuleConfig?.savings || 20,
+            }}
+            onUpdateBudgetRule={handleUpdateBudgetRule}
             selectedMonth={selectedMonth}
             selectedYear={selectedYear}
             onMonthChange={setSelectedMonth}
@@ -914,8 +967,11 @@ export function AppShell() {
           <SavingsVault
             goals={dataState.savingsGoals}
             accounts={dataState.accounts}
+            debts={dataState.debts}
             onAddGoal={handleAddSavingsGoal}
             onUpdateGoalAmount={handleUpdateGoalAmount}
+            onAddDebt={handleAddDebt}
+            onDeleteDebt={handleDeleteDebt}
           />
         )}
 

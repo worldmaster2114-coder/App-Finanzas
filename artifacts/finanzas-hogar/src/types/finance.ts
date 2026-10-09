@@ -38,6 +38,8 @@ export type Transaction = {
   date: string;
   note?: string;
   isRecurring: boolean;
+  isShared?: boolean;
+  splitRatio?: number; // e.g. 50 for 50/50 split
   createdByUserId?: string;
   createdAt: string;
 };
@@ -83,6 +85,26 @@ export type RecurringTransaction = {
   note?: string;
 };
 
+export type BudgetRuleStrategy = '50-30-20' | '70-20-10' | '60-20-20' | '80-20' | 'custom';
+
+export type BudgetRuleConfig = {
+  strategy: BudgetRuleStrategy;
+  needs: number;
+  wants: number;
+  savings: number;
+};
+
+export type DebtItem = {
+  id: string;
+  workspaceId?: string;
+  name: string;
+  totalBalance: number;
+  minimumPayment: number;
+  interestRate: number; // e.g. 18.5%
+  dueDate?: string;
+  category: 'credit_card' | 'loan' | 'mortgage' | 'personal';
+};
+
 export type UserPurpose = 'ahorrar' | 'controlar' | 'deudas' | 'hogar';
 export type UserUseCase = 'personal' | 'shared';
 
@@ -96,6 +118,8 @@ export type UserProfile = {
   useCase?: UserUseCase;
   activeWorkspaceId?: string;
   hasCompletedOnboarding: boolean;
+  preferredRule?: BudgetRuleStrategy;
+  customRuleConfig?: { needs: number; wants: number; savings: number };
 };
 
 export type Workspace = {
@@ -105,6 +129,8 @@ export type Workspace = {
   inviteCode: string;
   ownerId: string;
   membersCount: number;
+  budgetRule?: BudgetRuleStrategy;
+  customRuleConfig?: { needs: number; wants: number; savings: number };
 };
 
 export type FinanceDataState = {
@@ -117,4 +143,6 @@ export type FinanceDataState = {
   budgets: Budget[];
   savingsGoals: SavingsGoal[];
   recurringTransactions: RecurringTransaction[];
+  debts?: DebtItem[];
+  budgetRuleConfig?: BudgetRuleConfig;
 };
