@@ -57,12 +57,7 @@ export function FastEntryModal({ isOpen, onClose, accounts, categories, onSaveTr
   const [isSharedSplit, setIsSharedSplit] = useState(false);
   const [splitRatio, setSplitRatio] = useState<number>(50); // 50 = 50/50
 
-  if (!isOpen) return null;
-
-  const activeCategories = categories.filter((c) => c.type === (type === 'income' ? 'income' : 'expense'));
-  const currentCategory = categories.find((c) => c.id === selectedCategoryId) || activeCategories[0];
-
-  // Calculated live amount
+  // Calculated live amount (Hook must run unconditionally in every render)
   const computedValue = useMemo(() => {
     if (!amountStr) return 0;
     if (/[+\-*/]/.test(amountStr)) {
@@ -72,6 +67,11 @@ export function FastEntryModal({ isOpen, onClose, accounts, categories, onSaveTr
     const num = parseFloat(amountStr);
     return isNaN(num) ? 0 : num;
   }, [amountStr]);
+
+  if (!isOpen) return null;
+
+  const activeCategories = categories.filter((c) => c.type === (type === 'income' ? 'income' : 'expense'));
+  const currentCategory = categories.find((c) => c.id === selectedCategoryId) || activeCategories[0];
 
   // In-app Keypad handler with math operations (+, -, *, /)
   const handleKeypadPress = (val: string) => {
