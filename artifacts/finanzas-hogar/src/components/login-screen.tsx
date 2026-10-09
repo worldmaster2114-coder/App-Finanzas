@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { UserProfile } from '@/types/finance';
-import { Wallet, ShieldCheck, Users, PieChart, PiggyBank, Sparkles, ArrowRight, Mail, User, Lock } from 'lucide-react';
+import { Wallet, ShieldCheck, Users, PieChart, PiggyBank, Sparkles, ArrowRight, Mail, User, Lock, HeartHandshake } from 'lucide-react';
 
 type LoginScreenProps = {
-  onGoogleLogin: (user: Partial<UserProfile>) => void;
-  onEnterAsGuest: () => void;
+  onGoogleLogin: (user: Partial<UserProfile>, inviteCode?: string) => void;
+  onEnterAsGuest: (inviteCode?: string) => void;
 };
 
 // Helper to decode Google JWT token
@@ -63,7 +63,7 @@ export function LoginScreen({ onGoogleLogin, onEnterAsGuest }: LoginScreenProps)
                 email: payload.email,
                 name: payload.name || payload.email.split('@')[0],
                 picture: payload.picture,
-              });
+              }, inviteParams.code || undefined);
             }
           },
         });
@@ -83,7 +83,7 @@ export function LoginScreen({ onGoogleLogin, onEnterAsGuest }: LoginScreenProps)
         console.warn('Google Identity initialization notice:', err);
       }
     }
-  }, [clientId, onGoogleLogin]);
+  }, [clientId, onGoogleLogin, inviteParams.code]);
 
   // Handle Real Email / Name Registration
   const handleEmailSubmit = (e: React.FormEvent) => {
@@ -98,8 +98,12 @@ export function LoginScreen({ onGoogleLogin, onEnterAsGuest }: LoginScreenProps)
       id: `usr-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
       email: cleanEmail,
       name: cleanName,
-    });
+    }, inviteParams.code || undefined);
     setLoading(false);
+  };
+
+  const handleGuestEntry = () => {
+    onEnterAsGuest(inviteParams.code || undefined);
   };
 
   return (
@@ -136,12 +140,18 @@ export function LoginScreen({ onGoogleLogin, onEnterAsGuest }: LoginScreenProps)
             <div className="rounded-3xl border border-border bg-card/95 p-6 sm:p-8 shadow-2xl backdrop-blur-md space-y-5 text-center">
               
               <div className="space-y-1.5">
-                <span className="grid h-12 w-12 mx-auto place-items-center rounded-2xl bg-primary/15 text-primary shadow-xs">
-                  <ShieldCheck size={26} />
+                <span className={`grid h-12 w-12 mx-auto place-items-center rounded-2xl ${
+                  inviteParams.code ? 'bg-purple-500/20 text-purple-400' : 'bg-primary/15 text-primary'
+                } shadow-xs`}>
+                  {inviteParams.code ? <HeartHandshake size={26} /> : <ShieldCheck size={26} />}
                 </span>
-                <h2 className="font-serif text-2xl font-bold text-foreground">Iniciar Sesión</h2>
+                <h2 className="font-serif text-2xl font-bold text-foreground">
+                  {inviteParams.code ? 'Unirte al Hogar' : 'Iniciar Sesión'}
+                </h2>
                 <p className="text-xs text-muted-foreground leading-relaxed">
-                  Ingresa para acceder a tus finanzas sincronizadas y seguras.
+                  {inviteParams.code
+                    ? `Accede para sincronizar en vivo con "${inviteParams.workspace}"`
+                    : 'Ingresa para acceder a tus finanzas sincronizadas y seguras.'}
                 </p>
               </div>
 
@@ -152,7 +162,7 @@ export function LoginScreen({ onGoogleLogin, onEnterAsGuest }: LoginScreenProps)
                     <Sparkles size={14} /> Invitación de {inviteParams.owner}
                   </div>
                   <p className="text-[11px] text-foreground/90 leading-snug">
-                    Te ha invitado a compartir los gastos del hogar en <strong className="text-purple-300">"{inviteParams.workspace}"</strong>. Inicia sesión con tus datos para unirte.
+                    Te ha invitado a compartir los gastos del hogar en <strong className="text-purple-300">"{inviteParams.workspace}"</strong>.
                   </p>
                 </div>
               )}
@@ -199,7 +209,7 @@ export function LoginScreen({ onGoogleLogin, onEnterAsGuest }: LoginScreenProps)
                       disabled={loading}
                       className="h-11 w-full rounded-xl bg-primary text-xs font-bold text-primary-foreground shadow-xs hover:brightness-105 transition"
                     >
-                      {loading ? 'Ingresando...' : 'Crear Cuenta / Iniciar Sesión'}
+                      {loading ? 'Sincronizando...' : inviteParams.code ? 'Unirme al Hogar Ahora' : 'Crear Cuenta / Iniciar Sesión'}
                     </button>
 
                     <button
@@ -224,15 +234,25 @@ export function LoginScreen({ onGoogleLogin, onEnterAsGuest }: LoginScreenProps)
               {/* Divider */}
               <div className="relative flex items-center justify-center">
                 <div className="border-t border-border w-full" />
-                <span className="bg-card px-3 text-[10px] font-bold uppercase text-muted-foreground relative">O prueba sin cuenta</span>
+                <span className="bg-card px-3 text-[10px] font-bold uppercase text-muted-foreground relative">
+                  {inviteParams.code ? 'O entra al instante' : 'O prueba sin cuenta'}
+                </span>
               </div>
 
               {/* Guest / Demo Mode Button */}
               <button
-                onClick={onEnterAsGuest}
+                onClick={handleGuestEntry}
                 className="flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-secondary/80 text-xs font-bold text-foreground hover:bg-secondary transition focus-ring"
               >
-                Explorar en Modo Demo <ArrowRight size={14} />
+                {inviteParams.code ? (
+                  <>
+                    <HeartHandshake size={15} className="text-purple-400" /> Entrar al Hogar de {inviteParams.owner}
+                  </>
+                ) : (
+                  <>
+                    Explorar en Modo Demo <ArrowRight size={14} />
+                  </>
+                )}
               </button>
 
               <p className="text-[10px] text-muted-foreground">
@@ -302,8 +322,12 @@ export function LoginScreen({ onGoogleLogin, onEnterAsGuest }: LoginScreenProps)
       </main>
 
       {/* Footer */}
-      <footer className="text-center text-[11px] text-muted-foreground relative z-10 max-w-6xl mx-auto w-full pt-4 border-t border-border/40">
-        <p>50-30-20 — Desarrollada por <strong className="text-foreground font-semibold">Grupo Walnut</strong> · 2026</p>
+      <footer className="relative z-10 max-w-6xl mx-auto w-full pt-4 border-t border-border/40 flex flex-col sm:flex-row items-center justify-between text-[11px] text-muted-foreground gap-2">
+        <span>© 2026 Grupo Walnut · 50-30-20 App</span>
+        <div className="flex items-center gap-4">
+          <span>Términos y Privacidad</span>
+          <span>Soporte 24/7</span>
+        </div>
       </footer>
     </div>
   );

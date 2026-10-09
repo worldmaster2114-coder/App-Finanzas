@@ -271,8 +271,51 @@ export function AppShell() {
     setIsOnboardingOpen(false);
   };
 
-  // Google Login Handler
-  const handleGoogleLogin = (googleUserData: Partial<UserProfile>) => {
+  // Instant Direct Join into Shared Household Workspace
+  const executeJoinDirect = async (inviteCode: string, userPayload: UserProfile) => {
+    try {
+      setIsSyncing(true);
+      const res = await fetch('/api/finance/join-direct', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          inviteCode,
+          user: userPayload,
+        }),
+      });
+      const data = await res.json();
+      if (data && data.success && data.workspace) {
+        setDataState((prev) => {
+          const remoteAccounts = data.accounts && data.accounts.length > 0 ? data.accounts : prev.accounts;
+          const remoteCategories = data.categories && data.categories.length > 0 ? data.categories : prev.categories;
+          const existingWs = prev.workspaces || [];
+          const updatedWorkspaces = [data.workspace, ...existingWs.filter((w) => w.id !== data.workspace.id)];
+
+          const nextState: FinanceDataState = {
+            ...prev,
+            user: userPayload,
+            workspaces: updatedWorkspaces,
+            activeWorkspace: data.workspace,
+            accounts: remoteAccounts,
+            categories: remoteCategories,
+            transactions: data.transactions || [],
+            budgets: data.budgets || [],
+            savingsGoals: data.savingsGoals || [],
+            recurringTransactions: data.recurringTransactions || [],
+          };
+          saveToLocalStorage(nextState);
+          return nextState;
+        });
+      }
+    } catch (err) {
+      console.warn('Error executing join-direct:', err);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  // Google / Email Login Handler
+  const handleGoogleLogin = async (googleUserData: Partial<UserProfile>, inviteCodeFromLogin?: string) => {
     const userId = googleUserData.id || `usr-${Date.now()}`;
     const updatedUser: UserProfile = {
       id: userId,
@@ -285,62 +328,55 @@ export function AppShell() {
       hasCompletedOnboarding: true,
     };
 
-    setDataState((prev) => {
-      // Ensure the active workspace is owned by this real user (fix ws-default issue)
-      const existingWorkspaces = prev.workspaces || [];
-      let updatedWorkspaces = existingWorkspaces;
-      let updatedActiveWorkspace = prev.activeWorkspace;
-
-      // If the only workspace is the generic default (not owned by a real user), re-assign it
-      const isGenericDefault =
-        existingWorkspaces.length === 1 &&
-        (existingWorkspaces[0].ownerId === 'usr-default' || existingWorkspaces[0].ownerId === 'default-owner');
-
-      if (isGenericDefault) {
-        const reassigned: Workspace = {
-          ...existingWorkspaces[0],
-          ownerId: userId,
-        };
-        updatedWorkspaces = [reassigned];
-        updatedActiveWorkspace = reassigned;
-      }
-
-      const nextState: FinanceDataState = {
-        ...prev,
-        user: updatedUser,
-        workspaces: updatedWorkspaces,
-        activeWorkspace: updatedActiveWorkspace,
-      };
-
-      // Immediately sync to cloud so PostgreSQL knows this user and workspace
-      syncFinanceDataToCloud(nextState, true);
-
-      return nextState;
-    });
-
     setIsAuthenticated(true);
     setIsOnboardingOpen(false);
 
-    // If registered via invitation link (?join=XYZ123), notify the owner!
-    if (typeof window !== 'undefined') {
+    let activeInviteCode = inviteCodeFromLogin;
+    if (!activeInviteCode && typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
-      const inviteCode = params.get('join');
-      if (inviteCode) {
-        fetch('/api/finance/join-request', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            inviteCode,
-            requester: updatedUser,
-          }),
-        }).catch((err) => console.warn('Error submitting join request:', err));
+      activeInviteCode = params.get('join') || undefined;
+    }
 
-        // Join workspace locally as well
-        handleJoinSharedWorkspace(inviteCode);
-      }
+    if (activeInviteCode) {
+      await executeJoinDirect(activeInviteCode, updatedUser);
+    } else {
+      setDataState((prev) => {
+        const nextState: FinanceDataState = {
+          ...prev,
+          user: updatedUser,
+        };
+        syncFinanceDataToCloud(nextState, true);
+        return nextState;
+      });
     }
   };
 
+  // Guest Entry Handler
+  const handleEnterAsGuest = async (inviteCode?: string) => {
+    let code = inviteCode;
+    if (!code && typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      code = params.get('join') || undefined;
+    }
+
+    const guestUser: UserProfile = {
+      id: `usr-guest-${Date.now()}`,
+      email: `invitado-${Math.random().toString(36).slice(2, 6)}@grupowalnut.com`,
+      name: 'Invitado(a)',
+      hasCompletedOnboarding: true,
+    };
+
+    setIsAuthenticated(true);
+
+    if (code) {
+      await executeJoinDirect(code, guestUser);
+    } else {
+      setDataState((prev) => ({
+        ...prev,
+        user: guestUser,
+      }));
+    }
+  };
 
   // User Profile & Configuration Update Handler
   const handleUpdateUser = (updatedUserData: Partial<UserProfile>) => {
@@ -400,23 +436,14 @@ export function AppShell() {
   };
 
   // Join Shared Workspace Handler
-  const handleJoinSharedWorkspace = (code: string) => {
-    const joinedWs: Workspace = {
-      id: `ws-joined-${Date.now()}`,
-      name: `Hogar (${code})`,
-      type: 'shared',
-      inviteCode: code,
-      ownerId: 'owner-other',
-      membersCount: 2,
+  const handleJoinSharedWorkspace = async (code: string) => {
+    const userToUse = dataState.user || {
+      id: `usr-${Date.now()}`,
+      email: 'usuario@grupowalnut.com',
+      name: 'Usuario',
+      hasCompletedOnboarding: true,
     };
-
-    const nextState: FinanceDataState = {
-      ...dataState,
-      workspaces: [...dataState.workspaces, joinedWs],
-      activeWorkspace: joinedWs,
-    };
-    setDataState(nextState);
-    syncFinanceDataToCloud(nextState, true);
+    await executeJoinDirect(code, userToUse);
   };
 
   // Delete Workspace Handler
@@ -679,7 +706,7 @@ export function AppShell() {
     return (
       <LoginScreen
         onGoogleLogin={handleGoogleLogin}
-        onEnterAsGuest={() => setIsAuthenticated(true)}
+        onEnterAsGuest={handleEnterAsGuest}
       />
     );
   }

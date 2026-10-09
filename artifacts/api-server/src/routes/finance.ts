@@ -591,6 +591,151 @@ financeRouter.get("/join-info", async (req, res) => {
   }
 });
 
+// POST /api/finance/join-direct (Instant one-click join for spouse/roommate via invite code)
+financeRouter.post("/join-direct", async (req, res) => {
+  const { inviteCode, user } = req.body;
+  if (!inviteCode) {
+    return res.status(400).json({ error: "Código de invitación requerido" });
+  }
+
+  const cleanCode = inviteCode.trim().toUpperCase();
+
+  // --- Fallback if PostgreSQL is not connected ---
+  if (!db) {
+    const store = readServerStorage();
+    const ws = Object.values(store.workspaces).find((w: any) => (w.inviteCode || '').toUpperCase() === cleanCode);
+    if (!ws) {
+      return res.status(404).json({ error: "No se encontró ningún hogar con ese código de invitación" });
+    }
+
+    const emailKey = user?.email ? user.email.toLowerCase().trim() : user?.id || 'guest-user';
+    store.users[emailKey] = {
+      ...(store.users[emailKey] || {}),
+      ...(user || {}),
+      activeWorkspaceId: ws.id,
+    };
+
+    if (!store.workspaceMembers) store.workspaceMembers = [];
+    if (!store.workspaceMembers.some((m: any) => m.workspaceId === ws.id && (m.userId === emailKey || m.userId === user?.id))) {
+      store.workspaceMembers.push({
+        id: `mem-${Date.now()}`,
+        workspaceId: ws.id,
+        userId: emailKey,
+        role: "member",
+      });
+      ws.membersCount = (ws.membersCount || 1) + 1;
+    }
+
+    writeServerStorage(store);
+
+    const wsIds = [ws.id];
+    const accounts = Object.values(store.accounts).filter((a: any) => !a.workspaceId || wsIds.includes(a.workspaceId));
+    const categories = Object.values(store.categories);
+    const transactions = Object.values(store.transactions)
+      .filter((t: any) => !t.workspaceId || wsIds.includes(t.workspaceId))
+      .sort((a: any, b: any) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime());
+    const budgets = Object.values(store.budgets).filter((b: any) => !b.workspaceId || wsIds.includes(b.workspaceId));
+    const savingsGoals = Object.values(store.savingsGoals).filter((g: any) => !g.workspaceId || wsIds.includes(g.workspaceId));
+    const recurringTransactions = Object.values(store.recurringTransactions).filter((r: any) => !r.workspaceId || wsIds.includes(r.workspaceId));
+
+    return res.json({
+      success: true,
+      status: "synced",
+      message: `¡Te has unido exitosamente a "${ws.name}"!`,
+      workspace: ws,
+      workspaces: [ws],
+      activeWorkspaceId: ws.id,
+      accounts,
+      categories,
+      transactions,
+      budgets,
+      savingsGoals,
+      recurringTransactions,
+    });
+  }
+
+  try {
+    const wsRows = await db.select().from(workspacesTable).where(eq(workspacesTable.inviteCode, cleanCode)).limit(1);
+    if (!wsRows || wsRows.length === 0) {
+      return res.status(404).json({ error: "No se encontró ningún hogar con ese código de invitación" });
+    }
+
+    const workspace = wsRows[0];
+
+    // Ensure user record in DB
+    let userRecord = null;
+    if (user?.email) {
+      const emailClean = user.email.toLowerCase().trim();
+      const existingUsers = await db.select().from(usersTable).where(eq(usersTable.email, emailClean)).limit(1);
+      if (existingUsers.length > 0) {
+        userRecord = existingUsers[0];
+        await db.update(usersTable).set({ activeWorkspaceId: workspace.id }).where(eq(usersTable.id, userRecord.id));
+      } else {
+        const newUserId = user.id || `usr-${Date.now()}`;
+        await db.insert(usersTable).values({
+          id: newUserId,
+          email: emailClean,
+          name: user.name || emailClean.split('@')[0],
+          picture: user.picture,
+          activeWorkspaceId: workspace.id,
+        });
+        const u = await db.select().from(usersTable).where(eq(usersTable.id, newUserId)).limit(1);
+        userRecord = u[0] || null;
+      }
+    }
+
+    // Add membership
+    const userIdToLink = userRecord?.id || user?.id || `usr-${Date.now()}`;
+    const existingMembership = await db
+      .select()
+      .from(workspaceMembersTable)
+      .where(and(eq(workspaceMembersTable.workspaceId, workspace.id), eq(workspaceMembersTable.userId, userIdToLink)))
+      .limit(1);
+
+    if (existingMembership.length === 0) {
+      await db.insert(workspaceMembersTable).values({
+        id: `mem-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        workspaceId: workspace.id,
+        userId: userIdToLink,
+        role: "member",
+      });
+    }
+
+    // Fetch workspace data for instant hydration
+    const wsIds = [workspace.id];
+    const wsFilter = (col: any) => or(eq(col, workspace.id), isNull(col));
+
+    const accounts = await db.select().from(accountsTable).where(wsFilter(accountsTable.workspaceId));
+    const categories = await db.select().from(categoriesTable).where(wsFilter(categoriesTable.workspaceId));
+    const transactions = await db
+      .select()
+      .from(transactionsTable)
+      .where(wsFilter(transactionsTable.workspaceId))
+      .orderBy(desc(transactionsTable.date));
+    const budgets = await db.select().from(budgetsTable).where(wsFilter(budgetsTable.workspaceId));
+    const savingsGoals = await db.select().from(savingsGoalsTable).where(wsFilter(savingsGoalsTable.workspaceId));
+    const recurringTransactions = await db.select().from(recurringTransactionsTable).where(wsFilter(recurringTransactionsTable.workspaceId));
+
+    return res.json({
+      success: true,
+      status: "synced",
+      message: `¡Te has unido exitosamente a "${workspace.name}"!`,
+      workspace,
+      workspaces: [workspace],
+      activeWorkspaceId: workspace.id,
+      accounts: accounts.length > 0 ? accounts : [],
+      categories: categories.length > 0 ? categories : null,
+      transactions: transactions || [],
+      budgets: budgets || [],
+      savingsGoals: savingsGoals || [],
+      recurringTransactions: recurringTransactions || [],
+    });
+  } catch (err: any) {
+    console.error("[API] Error in join-direct:", err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 // POST /api/finance/join-request
 financeRouter.post("/join-request", async (req, res) => {
   const { inviteCode, requester } = req.body;
