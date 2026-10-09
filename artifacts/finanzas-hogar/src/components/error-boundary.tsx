@@ -66,7 +66,7 @@ function DefaultFallback({ error, resetError }: ErrorFallbackProps) {
         <div className="flex flex-col gap-2 pt-2">
           <button
             type="button"
-            onClick={resetError}
+            onClick={() => window.location.reload()}
             className="h-11 w-full rounded-2xl bg-primary px-4 text-xs font-bold text-primary-foreground shadow-md hover:brightness-105 transition"
           >
             Reintentar Carga

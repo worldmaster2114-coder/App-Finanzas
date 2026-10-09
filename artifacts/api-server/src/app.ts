@@ -25,13 +25,24 @@ app.use("/api", router);
 const staticPath = process.env["FRONTEND_DIST"] ||
   path.resolve(__dirname, "../../../artifacts/finanzas-hogar/dist/public");
 
-app.use(express.static(staticPath));
+app.use(express.static(staticPath, {
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith('.html')) {
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+    }
+  }
+}));
 
 // SPA Fallback for client-side routing (Express 5 compatible)
 app.use((req, res, next) => {
   if (req.method !== "GET" || req.path.startsWith("/api")) {
     return next();
   }
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
   res.sendFile(path.join(staticPath, "index.html"), (err) => {
     if (err) next();
   });
