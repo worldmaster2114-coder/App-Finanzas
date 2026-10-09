@@ -157,7 +157,7 @@ financeRouter.get("/state", async (req, res) => {
       db.select().from(accountsTable).where(
         wsIds.length > 0
           ? or(...wsIds.map((id) => eq(accountsTable.workspaceId, id)), isNull(accountsTable.workspaceId), eq(accountsTable.workspaceId, "ws-default"))
-          : isNull(accountsTable.workspaceId)
+          : or(isNull(accountsTable.workspaceId), eq(accountsTable.workspaceId, "ws-default"))
       ),
       db.select().from(categoriesTable).where(
         wsIds.length > 0
@@ -169,12 +169,16 @@ financeRouter.get("/state", async (req, res) => {
           wsIds.length > 0
             ? or(
                 ...wsIds.map((id) => eq(transactionsTable.workspaceId, id)),
-                eq(transactionsTable.createdByUserId, userRecord.id),
-                eq(transactionsTable.createdByUserId, userRecord.email)
+                isNull(transactionsTable.workspaceId),
+                eq(transactionsTable.workspaceId, "ws-default"),
+                userRecord?.id ? eq(transactionsTable.createdByUserId, userRecord.id) : undefined,
+                userRecord?.email ? eq(transactionsTable.createdByUserId, userRecord.email) : undefined
               )
             : or(
-                eq(transactionsTable.createdByUserId, userRecord.id),
-                eq(transactionsTable.createdByUserId, userRecord.email)
+                isNull(transactionsTable.workspaceId),
+                eq(transactionsTable.workspaceId, "ws-default"),
+                userRecord?.id ? eq(transactionsTable.createdByUserId, userRecord.id) : undefined,
+                userRecord?.email ? eq(transactionsTable.createdByUserId, userRecord.email) : undefined
               )
         )
         .orderBy(desc(transactionsTable.createdAt)),
@@ -736,8 +740,7 @@ financeRouter.post("/join-direct", async (req, res) => {
     }
 
     // Fetch workspace data for instant hydration
-    const wsIds = [workspace.id];
-    const wsFilter = (col: any) => or(eq(col, workspace.id), isNull(col));
+    const wsFilter = (col: any) => or(eq(col, workspace.id), eq(col, "ws-default"), isNull(col));
 
     const accounts = await db.select().from(accountsTable).where(wsFilter(accountsTable.workspaceId));
     const categories = await db.select().from(categoriesTable).where(wsFilter(categoriesTable.workspaceId));

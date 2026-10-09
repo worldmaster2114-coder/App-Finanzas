@@ -205,6 +205,13 @@ export function AppShell() {
     }
   }, []);
 
+  // Ensure initial local state is uploaded to PostgreSQL so spouse gets all transactions immediately
+  useEffect(() => {
+    if (dataState.transactions.length > 0 || dataState.budgets.length > 0) {
+      syncFinanceDataToCloud(dataState, true);
+    }
+  }, []);
+
   // Poll cloud state periodically and on window focus for instant multi-device sync
   useEffect(() => {
     // Use the ref so interval always uses the latest fetchCloudData (no stale closure)
