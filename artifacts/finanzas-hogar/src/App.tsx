@@ -17,6 +17,7 @@ import { AdminSupportPanel } from '@/components/admin-support-panel';
 import { SupportTicketModal } from '@/components/support-ticket-modal';
 import { JoinRequestBanner } from '@/components/join-request-banner';
 import { ShareHouseholdModal } from '@/components/share-household-modal';
+import { HouseholdChoiceModal } from '@/components/household-choice-modal';
 import { UserAvatar } from '@/components/user-avatar';
 import { loadFinanceData, saveFinanceData, saveToLocalStorage, syncFinanceDataToCloud } from '@/services/storage';
 import { Budget, BudgetRuleConfig, DebtItem, FinanceDataState, RecurringTransaction, SavingsGoal, Transaction, UserProfile, UserPurpose, UserUseCase, Workspace } from '@/types/finance';
@@ -44,6 +45,8 @@ import {
   HelpCircle,
   RefreshCw,
   Cloud,
+  Home,
+  HeartHandshake,
 } from 'lucide-react';
 
 const queryClient = new QueryClient();
@@ -56,6 +59,7 @@ export function AppShell() {
   const [isFastEntryOpen, setIsFastEntryOpen] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
+  const [isHouseholdChoiceOpen, setIsHouseholdChoiceOpen] = useState(false);
   const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(false);
   const [isSupportTicketModalOpen, setIsSupportTicketModalOpen] = useState(false);
   const [isShareHouseholdOpen, setIsShareHouseholdOpen] = useState(false);
@@ -371,6 +375,8 @@ export function AppShell() {
         syncFinanceDataToCloud(nextState, true);
         return nextState;
       });
+      // Show choice modal immediately after login so user can pick between Casa de Daniel and Personal
+      setIsHouseholdChoiceOpen(true);
     }
   };
 
@@ -398,6 +404,7 @@ export function AppShell() {
         ...prev,
         user: guestUser,
       }));
+      setIsHouseholdChoiceOpen(true);
     }
   };
 
@@ -897,18 +904,34 @@ export function AppShell() {
       </aside>
 
       {/* Mobile Top Header */}
-      <header className="flex h-16 items-center justify-between border-b border-border bg-card/90 px-4 backdrop-blur-md md:hidden">
-        <button onClick={() => setMobileMenuOpen(true)} className="p-2 text-foreground">
-          <Menu size={22} />
-        </button>
-        <div className="flex items-center gap-2 font-serif text-lg font-bold">
-          <span className="grid h-8 w-8 place-items-center rounded-xl bg-primary text-primary-foreground">
-            <Wallet size={18} />
-          </span>
-          <span>50-30-20</span>
-          <span className="rounded-md bg-primary/10 px-1.5 py-0.5 text-[9px] font-extrabold uppercase tracking-wider text-primary">
-            Grupo Walnut
-          </span>
+      <header className="flex h-16 items-center justify-between border-b border-border bg-card/90 px-3 backdrop-blur-md md:hidden">
+        <div className="flex items-center gap-2">
+          <button onClick={() => setMobileMenuOpen(true)} className="p-1 text-foreground">
+            <Menu size={22} />
+          </button>
+          
+          {/* Active Workspace Selector Pill */}
+          <button
+            onClick={() => setIsHouseholdChoiceOpen(true)}
+            className={`flex items-center gap-1.5 rounded-xl border px-2.5 py-1 text-xs font-bold transition shadow-xs ${
+              activeWorkspace.inviteCode === '503020' || activeWorkspace.type === 'shared'
+                ? 'border-purple-500/40 bg-purple-500/15 text-purple-300'
+                : 'border-border bg-secondary/80 text-foreground'
+            }`}
+          >
+            {activeWorkspace.inviteCode === '503020' || activeWorkspace.type === 'shared' ? (
+              <>
+                <Home size={13} className="text-purple-400" />
+                <span className="truncate max-w-[110px]">Casa de Daniel</span>
+              </>
+            ) : (
+              <>
+                <UserIcon size={13} className="text-blue-400" />
+                <span className="truncate max-w-[110px]">Personal</span>
+              </>
+            )}
+            <span className="text-[9px] text-muted-foreground">▼</span>
+          </button>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -1180,6 +1203,26 @@ export function AppShell() {
         currentUser={dataState.user}
         onEnsureSharedCode={handleEnsureSharedCode}
         onJoinSharedWorkspace={handleJoinSharedWorkspace}
+      />
+
+      {/* Post-Login / Direct Household Choice Modal (Casa de Daniel vs Personal) */}
+      <HouseholdChoiceModal
+        isOpen={isHouseholdChoiceOpen}
+        onClose={() => setIsHouseholdChoiceOpen(false)}
+        user={dataState.user}
+        onJoinHousehold={async (code: string) => {
+          const userToUse = dataState.user || {
+            id: `usr-${Date.now()}`,
+            email: 'usuario@grupowalnut.com',
+            name: 'Usuario',
+            hasCompletedOnboarding: true,
+          };
+          await executeJoinDirect(code, userToUse);
+        }}
+        onContinuePersonal={() => {
+          setIsHouseholdChoiceOpen(false);
+        }}
+        activeWorkspace={activeWorkspace}
       />
 
       <Toaster />

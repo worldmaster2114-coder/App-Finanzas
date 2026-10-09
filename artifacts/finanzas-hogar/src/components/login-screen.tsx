@@ -235,24 +235,25 @@ export function LoginScreen({ onGoogleLogin, onEnterAsGuest }: LoginScreenProps)
               <div className="relative flex items-center justify-center">
                 <div className="border-t border-border w-full" />
                 <span className="bg-card px-3 text-[10px] font-bold uppercase text-muted-foreground relative">
-                  {inviteParams.code ? 'O entra al instante' : 'O prueba sin cuenta'}
+                  O entra directamente
                 </span>
               </div>
 
+              {/* Direct Join Household Button */}
+              <button
+                onClick={() => onEnterAsGuest(inviteParams.code || '503020')}
+                className="flex h-11 w-full items-center justify-center gap-2 rounded-2xl border border-purple-500/40 bg-purple-500/15 text-xs font-bold text-purple-300 hover:bg-purple-500/25 transition shadow-xs"
+              >
+                <HeartHandshake size={16} className="text-purple-400" />
+                <span>Entrar a la Casa de Daniel (Hogar)</span>
+              </button>
+
               {/* Guest / Demo Mode Button */}
               <button
-                onClick={handleGuestEntry}
+                onClick={() => onEnterAsGuest(undefined)}
                 className="flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-secondary/80 text-xs font-bold text-foreground hover:bg-secondary transition focus-ring"
               >
-                {inviteParams.code ? (
-                  <>
-                    <HeartHandshake size={15} className="text-purple-400" /> Entrar al Hogar de {inviteParams.owner}
-                  </>
-                ) : (
-                  <>
-                    Explorar en Modo Demo <ArrowRight size={14} />
-                  </>
-                )}
+                <span>Crear Cuenta Personal Independiente</span> <ArrowRight size={14} />
               </button>
 
               <p className="text-[10px] text-muted-foreground">

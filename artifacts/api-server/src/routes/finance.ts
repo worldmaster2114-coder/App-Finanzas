@@ -670,7 +670,26 @@ financeRouter.post("/join-direct", async (req, res) => {
   }
 
   try {
-    const wsRows = await db.select().from(workspacesTable).where(eq(workspacesTable.inviteCode, cleanCode)).limit(1);
+    let wsRows = await db.select().from(workspacesTable).where(eq(workspacesTable.inviteCode, cleanCode)).limit(1);
+    
+    // Auto-create or resolve default Casa de Daniel workspace for code 503020
+    if ((!wsRows || wsRows.length === 0) && cleanCode === "503020") {
+      const defaultWs = await db.select().from(workspacesTable).where(eq(workspacesTable.id, "ws-default")).limit(1);
+      if (defaultWs.length > 0) {
+        await db.update(workspacesTable).set({ inviteCode: "503020", name: "Casa de Daniel (Hogar)" }).where(eq(workspacesTable.id, "ws-default"));
+        wsRows = await db.select().from(workspacesTable).where(eq(workspacesTable.id, "ws-default")).limit(1);
+      } else {
+        await db.insert(workspacesTable).values({
+          id: "ws-default",
+          name: "Casa de Daniel (Hogar)",
+          type: "shared",
+          inviteCode: "503020",
+          ownerId: "usr-daniel",
+        });
+        wsRows = await db.select().from(workspacesTable).where(eq(workspacesTable.id, "ws-default")).limit(1);
+      }
+    }
+
     if (!wsRows || wsRows.length === 0) {
       return res.status(404).json({ error: "No se encontró ningún hogar con ese código de invitación" });
     }
