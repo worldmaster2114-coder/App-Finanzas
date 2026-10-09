@@ -1,13 +1,14 @@
 import { useMemo, useState } from 'react';
-import { Account, BudgetRuleConfig, BudgetRuleStrategy, Category, RecurringTransaction, Transaction } from '@/types/finance';
+import { Account, Budget, BudgetRuleConfig, BudgetRuleStrategy, Category, RecurringTransaction, Transaction } from '@/types/finance';
 import { CategoryIcon } from './fast-entry-modal';
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
-import { ArrowDownLeft, ArrowUpRight, Wallet, TrendingUp, CircleDollarSign, CalendarDays, Share2, Users, Sliders, ShieldCheck, Zap, AlertCircle, ChevronRight, Check } from 'lucide-react';
+import { ArrowDownLeft, ArrowUpRight, Wallet, TrendingUp, CircleDollarSign, CalendarDays, Share2, Users, Sliders, ShieldCheck, Zap, AlertCircle, ChevronRight, Check, PieChart as PieChartIcon, ArrowRight, Target, Plus, AlertTriangle } from 'lucide-react';
 
 type DashboardAnalyticsProps = {
   accounts: Account[];
   categories: Category[];
   transactions: Transaction[];
+  budgets?: Budget[];
   recurringTransactions?: RecurringTransaction[];
   budgetRuleConfig?: BudgetRuleConfig;
   onUpdateBudgetRule?: (config: BudgetRuleConfig) => void;
@@ -16,6 +17,7 @@ type DashboardAnalyticsProps = {
   onMonthChange: (month: number) => void;
   onYearChange: (year: number) => void;
   onOpenShareHousehold?: () => void;
+  onNavigateToBudgets?: () => void;
 };
 
 const formatMoney = (amount: number) =>
@@ -30,6 +32,7 @@ export function DashboardAnalytics({
   accounts,
   categories,
   transactions,
+  budgets = [],
   recurringTransactions = [],
   budgetRuleConfig = { strategy: '50-30-20', needs: 50, wants: 30, savings: 20 },
   onUpdateBudgetRule,
@@ -38,6 +41,7 @@ export function DashboardAnalytics({
   onMonthChange,
   onYearChange,
   onOpenShareHousehold,
+  onNavigateToBudgets,
 }: DashboardAnalyticsProps) {
   const [activePieIndex, setActivePieIndex] = useState<number | undefined>();
   const [isRuleModalOpen, setIsRuleModalOpen] = useState(false);
@@ -98,11 +102,57 @@ export function DashboardAnalytics({
   // Safe to Spend Today / Ritmo Diario Calculator
   const safeDailySpend = useMemo(() => {
     if (monthlyIncome <= 0) return 0;
-    // Planned total expense budget for the month based on chosen rule
     const totalExpenseBudget = monthlyIncome * ((activeNeedsRatio + activeWantsRatio) / 100);
     const availablePool = totalExpenseBudget - monthlyExpenses - pendingRecurringExpenses;
     return Math.max(0, Math.round(availablePool / daysRemaining));
   }, [monthlyIncome, activeNeedsRatio, activeWantsRatio, monthlyExpenses, pendingRecurringExpenses, daysRemaining]);
+
+  // -------------------------------------------------------------
+  // PRESUPUESTO PREVISTO VS GASTADO REAL
+  // -------------------------------------------------------------
+  const budgetSummary = useMemo(() => {
+    // Total from user-defined category budgets
+    const totalExplicit = (budgets || []).reduce((sum, b) => sum + b.amountLimit, 0);
+    // Planned expense budget from rule if income is recorded
+    const plannedFromRule = monthlyIncome > 0 ? monthlyIncome * ((activeNeedsRatio + activeWantsRatio) / 100) : 0;
+
+    const totalPlanned = totalExplicit > 0 ? totalExplicit : plannedFromRule;
+    const remaining = totalPlanned - monthlyExpenses;
+    const percentUsed = totalPlanned > 0 ? Math.round((monthlyExpenses / totalPlanned) * 100) : 0;
+    const percentRemaining = Math.max(0, 100 - percentUsed);
+
+    // Detailed per-category budget progress
+    const categoryBudgetList = (budgets || []).map((b) => {
+      const cat = categories.find((c) => c.id === b.categoryId);
+      const spent = monthTransactions
+        .filter((t) => t.type === 'expense' && t.categoryId === b.categoryId)
+        .reduce((sum, t) => sum + t.amount, 0);
+      const catRemaining = b.amountLimit - spent;
+      const catPct = Math.round((spent / b.amountLimit) * 100);
+      return {
+        id: b.id,
+        categoryName: cat?.name || 'Categoría',
+        color: cat?.color || '#3b82f6',
+        icon: cat?.icon || 'Tag',
+        plannedLimit: b.amountLimit,
+        spent,
+        remaining: catRemaining,
+        percent: catPct,
+        isOver: spent > b.amountLimit,
+      };
+    });
+
+    return {
+      hasBudgets: totalExplicit > 0,
+      totalPlanned,
+      totalSpent: monthlyExpenses,
+      remaining,
+      percentUsed,
+      percentRemaining,
+      isOverBudget: totalPlanned > 0 && monthlyExpenses > totalPlanned,
+      categoryBudgetList,
+    };
+  }, [budgets, monthlyIncome, activeNeedsRatio, activeWantsRatio, monthlyExpenses, categories, monthTransactions]);
 
   // Shared Expenses in Household
   const sharedExpensesSummary = useMemo(() => {
@@ -304,7 +354,7 @@ export function DashboardAnalytics({
               <Sliders size={11} /> Regla {activeNeedsRatio}/{activeWantsRatio}/{activeSavingsRatio}
             </button>
           </div>
-          <p className="text-xs text-muted-foreground">Monitorea tu balance consolidado, flujo de caja y ritmo diario de gastos.</p>
+          <p className="text-xs text-muted-foreground">Monitorea tu balance consolidado, flujo de caja y control presupuestario.</p>
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
@@ -360,6 +410,182 @@ export function DashboardAnalytics({
             </select>
           </div>
         </div>
+      </div>
+
+      {/* ------------------------------------------------------------------ */}
+      {/* 🌟 HERO CARD: CONTROL PRESUPUESTARIO (GASTADO VS PREVISTO) */}
+      {/* ------------------------------------------------------------------ */}
+      <div className={`rounded-3xl border p-5 sm:p-6 shadow-md transition-all ${
+        budgetSummary.isOverBudget
+          ? 'border-destructive/40 bg-gradient-to-br from-destructive/15 via-card to-card'
+          : 'border-primary/30 bg-gradient-to-br from-primary/15 via-card to-card'
+      }`}>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-border/60 gap-2">
+          <div className="flex items-center gap-2.5">
+            <span className={`grid h-9 w-9 place-items-center rounded-2xl ${
+              budgetSummary.isOverBudget ? 'bg-destructive text-destructive-foreground' : 'bg-primary text-primary-foreground'
+            } shadow-xs`}>
+              <Target size={18} strokeWidth={2.5} />
+            </span>
+            <div>
+              <h3 className="font-serif text-lg font-bold text-foreground">Control Presupuestario del Mes</h3>
+              <p className="text-xs text-muted-foreground">
+                {monthNames[selectedMonth]} {selectedYear} • {budgetSummary.hasBudgets ? 'Presupuestos Asignados' : 'Límite Estimado por Regla'}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className={`rounded-full px-3 py-1 text-xs font-extrabold capitalize ${
+              budgetSummary.isOverBudget
+                ? 'bg-destructive/20 text-destructive border border-destructive/30'
+                : budgetSummary.percentUsed >= 80
+                ? 'bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30'
+                : 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'
+            }`}>
+              {budgetSummary.isOverBudget
+                ? '⚠️ Presupuesto Excedido'
+                : budgetSummary.percentUsed >= 80
+                ? '⚡ Cerca del Límite'
+                : '✅ En Rango Saludable'}
+            </span>
+            {onNavigateToBudgets && (
+              <button
+                onClick={onNavigateToBudgets}
+                className="text-xs font-bold text-primary hover:underline flex items-center gap-1"
+              >
+                Ajustar <ArrowRight size={13} />
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* 3 Prominent Metrics: Previsto vs Gastado vs Quedó Disponible */}
+        <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-3">
+          {/* 1. Presupuesto Previsto */}
+          <div className="rounded-2xl border border-border/70 bg-card/80 p-4 shadow-xs">
+            <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider block">
+              Presupuesto Previsto
+            </span>
+            <p className="mt-1 font-mono text-2xl font-extrabold text-foreground">
+              {budgetSummary.totalPlanned > 0 ? formatMoney(budgetSummary.totalPlanned) : 'Sin Definir'}
+            </p>
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              {budgetSummary.hasBudgets ? `${budgets.length} categorías presupuestadas` : `Base regla (${activeNeedsRatio + activeWantsRatio}%)`}
+            </p>
+          </div>
+
+          {/* 2. Total Gastado */}
+          <div className="rounded-2xl border border-border/70 bg-card/80 p-4 shadow-xs">
+            <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider block">
+              Total Gastado
+            </span>
+            <p className="mt-1 font-mono text-2xl font-extrabold text-destructive">
+              {formatMoney(budgetSummary.totalSpent)}
+            </p>
+            <p className="mt-1 text-[11px] text-muted-foreground font-semibold">
+              {budgetSummary.percentUsed}% del presupuesto consumido
+            </p>
+          </div>
+
+          {/* 3. Quedó Disponible / Restante */}
+          <div className={`rounded-2xl border p-4 shadow-xs ${
+            budgetSummary.isOverBudget
+              ? 'border-destructive/40 bg-destructive/10'
+              : 'border-emerald-500/40 bg-emerald-500/10'
+          }`}>
+            <span className={`text-[11px] font-bold uppercase tracking-wider block ${
+              budgetSummary.isOverBudget ? 'text-destructive' : 'text-emerald-700 dark:text-emerald-400'
+            }`}>
+              {budgetSummary.isOverBudget ? 'Déficit Excedido' : 'Quedó Disponible (Restante)'}
+            </span>
+            <p className={`mt-1 font-mono text-2xl font-extrabold ${
+              budgetSummary.isOverBudget ? 'text-destructive' : 'text-emerald-600 dark:text-emerald-400'
+            }`}>
+              {budgetSummary.isOverBudget ? `- ${formatMoney(Math.abs(budgetSummary.remaining))}` : formatMoney(budgetSummary.remaining)}
+            </p>
+            <p className={`mt-1 text-[11px] font-medium ${
+              budgetSummary.isOverBudget ? 'text-destructive' : 'text-emerald-700 dark:text-emerald-400'
+            }`}>
+              {budgetSummary.isOverBudget
+                ? `Excediste el plan por ${formatMoney(Math.abs(budgetSummary.remaining))}`
+                : `${budgetSummary.percentRemaining}% disponible para el resto del mes`}
+            </p>
+          </div>
+        </div>
+
+        {/* Global Progress Bar */}
+        {budgetSummary.totalPlanned > 0 && (
+          <div className="mt-5 space-y-2">
+            <div className="flex justify-between text-xs font-bold">
+              <span className="text-muted-foreground">Progreso de Consumo:</span>
+              <span className={`font-mono ${budgetSummary.isOverBudget ? 'text-destructive' : 'text-foreground'}`}>
+                {budgetSummary.percentUsed}% gastado
+              </span>
+            </div>
+            <div className="h-3 w-full overflow-hidden rounded-full bg-secondary/80">
+              <div
+                className={`h-full rounded-full transition-all duration-700 ${
+                  budgetSummary.isOverBudget
+                    ? 'bg-destructive'
+                    : budgetSummary.percentUsed >= 80
+                    ? 'bg-amber-500'
+                    : 'bg-emerald-500'
+                }`}
+                style={{ width: `${Math.min(100, budgetSummary.percentUsed)}%` }}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Category Budget Breakdown Preview */}
+        {budgetSummary.categoryBudgetList.length > 0 && (
+          <div className="mt-5 pt-4 border-t border-border/60">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3">
+              Desglose de Presupuestos Activos ({budgetSummary.categoryBudgetList.length})
+            </h4>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {budgetSummary.categoryBudgetList.map((catB) => (
+                <div key={catB.id} className="rounded-2xl border border-border/60 bg-card/90 p-3.5 space-y-2 shadow-2xs">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="grid h-7 w-7 place-items-center rounded-lg text-white" style={{ backgroundColor: catB.color }}>
+                        <CategoryIcon iconName={catB.icon} size={14} />
+                      </span>
+                      <span className="text-xs font-bold text-foreground truncate">{catB.categoryName}</span>
+                    </div>
+                    <span className={`text-[10px] font-mono font-bold ${catB.isOver ? 'text-destructive' : 'text-muted-foreground'}`}>
+                      {catB.percent}%
+                    </span>
+                  </div>
+
+                  <div className="flex items-baseline justify-between text-xs font-mono">
+                    <span className="font-bold text-foreground">{formatMoney(catB.spent)}</span>
+                    <span className="text-[11px] text-muted-foreground">de {formatMoney(catB.plannedLimit)}</span>
+                  </div>
+
+                  <div className="h-2 w-full overflow-hidden rounded-full bg-secondary">
+                    <div
+                      className={`h-full rounded-full transition-all ${
+                        catB.isOver ? 'bg-destructive' : catB.percent >= 80 ? 'bg-amber-500' : 'bg-primary'
+                      }`}
+                      style={{ width: `${Math.min(100, catB.percent)}%` }}
+                    />
+                  </div>
+
+                  <div className="flex justify-between text-[10px]">
+                    <span className="text-muted-foreground">
+                      {catB.isOver ? 'Excedido:' : 'Quedan:'}
+                    </span>
+                    <span className={`font-mono font-bold ${catB.isOver ? 'text-destructive' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                      {formatMoney(Math.abs(catB.remaining))}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Smart Financial Diagnostic Alert */}
@@ -541,7 +767,7 @@ export function DashboardAnalytics({
         </div>
       </div>
 
-      {/* Shared Household Expense Summary Card (if any shared transactions exist) */}
+      {/* Shared Household Expense Summary Card */}
       {sharedExpensesSummary.count > 0 && (
         <div className="flex items-center justify-between rounded-2xl border border-purple-500/30 bg-purple-500/10 p-4">
           <div className="flex items-center gap-3">

@@ -947,6 +947,7 @@ export function AppShell() {
             accounts={dataState.accounts}
             categories={dataState.categories}
             transactions={dataState.transactions}
+            budgets={dataState.budgets}
             recurringTransactions={dataState.recurringTransactions}
             budgetRuleConfig={dataState.budgetRuleConfig || {
               strategy: (activeWorkspace?.budgetRule as any) || '50-30-20',
@@ -960,6 +961,7 @@ export function AppShell() {
             onMonthChange={setSelectedMonth}
             onYearChange={setSelectedYear}
             onOpenShareHousehold={() => setIsShareHouseholdOpen(true)}
+            onNavigateToBudgets={() => setActiveTab('budgets')}
           />
         )}
 
