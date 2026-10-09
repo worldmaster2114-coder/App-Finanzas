@@ -83,14 +83,14 @@ export function AppShell() {
   const fetchCloudDataRef = useRef<((showLoading?: boolean) => Promise<void>) | null>(null);
 
   const fetchCloudData = async (showLoading = false) => {
-    // Bug #5 fix: Skip fetch if no user is logged in
-    if (!dataState.user?.email && !dataState.user?.id) return;
-
     if (showLoading) setIsSyncing(true);
     try {
       const email = dataState.user?.email ? encodeURIComponent(dataState.user.email) : '';
       const userId = dataState.user?.id ? encodeURIComponent(dataState.user.id) : '';
-      const res = await fetch(`/api/finance/state?userId=${userId}&email=${email}`);
+      const wsId = activeWorkspace?.id ? encodeURIComponent(activeWorkspace.id) : '';
+      const inviteCode = activeWorkspace?.inviteCode ? encodeURIComponent(activeWorkspace.inviteCode) : '';
+      
+      const res = await fetch(`/api/finance/state?userId=${userId}&email=${email}&workspaceId=${wsId}&inviteCode=${inviteCode}`);
       const data = await res.json();
 
       if (data && data.status === 'synced') {
@@ -106,7 +106,7 @@ export function AppShell() {
 
           // Merge remote transactions with local ones by unique ID
           let remoteTransactions: Transaction[];
-          if (Array.isArray(data.transactions)) {
+          if (Array.isArray(data.transactions) && data.transactions.length > 0) {
             const txMap = new Map<string, Transaction>();
             data.transactions.forEach((tx: Transaction) => txMap.set(tx.id, tx));
             prev.transactions.forEach((tx: Transaction) => {
@@ -178,6 +178,29 @@ export function AppShell() {
   // Bug #2 fix: Keep ref always pointing to latest fetchCloudData
   fetchCloudDataRef.current = fetchCloudData;
 
+  // Auto-join on Mount if URL contains ?join= or ?code=
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const joinCode = params.get('join') || params.get('code');
+    if (joinCode) {
+      const clean = joinCode.trim().toUpperCase();
+      const existingUser = dataState.user || {
+        id: `usr-guest-${Date.now()}`,
+        email: `invitado-${Math.random().toString(36).slice(2, 6)}@grupowalnut.com`,
+        name: 'Invitado(a)',
+        hasCompletedOnboarding: true,
+      };
+      setIsAuthenticated(true);
+      executeJoinDirect(clean, existingUser).then(() => {
+        // Clear query param so it doesn't loop
+        try {
+          window.history.replaceState({}, '', window.location.pathname);
+        } catch (e) {}
+      });
+    }
+  }, []);
+
   // Poll cloud state periodically and on window focus for instant multi-device sync
   useEffect(() => {
     // Use the ref so interval always uses the latest fetchCloudData (no stale closure)
@@ -185,7 +208,7 @@ export function AppShell() {
 
     call(false); // initial fetch on mount / user change
 
-    const interval = setInterval(() => call(false), 5000); // Live sync every 5 seconds
+    const interval = setInterval(() => call(false), 3000); // Live sync every 3 seconds
 
     const handleFocus = () => call(false);
     const handleVisibility = () => {
@@ -200,7 +223,7 @@ export function AppShell() {
       window.removeEventListener('focus', handleFocus);
       document.removeEventListener('visibilitychange', handleVisibility);
     };
-  }, [dataState.user?.id, dataState.user?.email]);
+  }, [dataState.user?.id, dataState.user?.email, activeWorkspace?.id, activeWorkspace?.inviteCode]);
 
 
   // Toggle Dark Mode

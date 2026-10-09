@@ -76,6 +76,8 @@ financeRouter.get("/state", async (req, res) => {
   try {
     const userId = req.query["userId"] as string | undefined;
     const email = req.query["email"] as string | undefined;
+    const reqWorkspaceId = req.query["workspaceId"] as string | undefined;
+    const reqInviteCode = req.query["inviteCode"] as string | undefined;
 
     // --- 1. Resolve user record ---
     let userRecord: any = null;
@@ -87,8 +89,47 @@ financeRouter.get("/state", async (req, res) => {
       if (u.length > 0) userRecord = u[0];
     }
 
-    // No user found → return empty (do NOT leak other users' data)
-    if (!userRecord) {
+    // --- 2. Fetch workspaces this user owns OR is member of OR explicitly requested ---
+    let workspaces: any[] = [];
+    const wsMap = new Map<string, any>();
+
+    if (userRecord) {
+      const owned = await db
+        .select()
+        .from(workspacesTable)
+        .where(or(
+          eq(workspacesTable.ownerId, userRecord.id),
+          eq(workspacesTable.ownerId, userRecord.email),
+          userRecord.activeWorkspaceId ? eq(workspacesTable.id, userRecord.activeWorkspaceId) : eq(workspacesTable.ownerId, userRecord.id)
+        ));
+      for (const w of owned) wsMap.set(w.id, w);
+
+      const memberRows = await db
+        .select()
+        .from(workspaceMembersTable)
+        .where(eq(workspaceMembersTable.userId, userRecord.id));
+
+      for (const mRow of memberRows) {
+        const found = await db.select().from(workspacesTable).where(eq(workspacesTable.id, mRow.workspaceId));
+        if (found.length > 0) wsMap.set(found[0].id, found[0]);
+      }
+    }
+
+    if (reqWorkspaceId && !wsMap.has(reqWorkspaceId)) {
+      const found = await db.select().from(workspacesTable).where(eq(workspacesTable.id, reqWorkspaceId)).limit(1);
+      if (found.length > 0) wsMap.set(found[0].id, found[0]);
+    }
+
+    if (reqInviteCode) {
+      const clean = reqInviteCode.trim().toUpperCase();
+      const found = await db.select().from(workspacesTable).where(eq(workspacesTable.inviteCode, clean)).limit(1);
+      if (found.length > 0) wsMap.set(found[0].id, found[0]);
+    }
+
+    workspaces = Array.from(wsMap.values());
+
+    // Fallback: if no user and no workspace found, return default seed or clean empty
+    if (!userRecord && workspaces.length === 0) {
       return res.json({
         status: "synced",
         user: null,
@@ -103,40 +144,14 @@ financeRouter.get("/state", async (req, res) => {
       });
     }
 
-    // --- 2. Fetch workspaces this user owns OR is member of ---
-    const owned = await db
-      .select()
-      .from(workspacesTable)
-      .where(or(
-        eq(workspacesTable.ownerId, userRecord.id),
-        eq(workspacesTable.ownerId, userRecord.email),
-        userRecord.activeWorkspaceId ? eq(workspacesTable.id, userRecord.activeWorkspaceId) : eq(workspacesTable.ownerId, userRecord.id)
-      ));
-
-    const memberRows = await db
-      .select()
-      .from(workspaceMembersTable)
-      .where(eq(workspaceMembersTable.userId, userRecord.id));
-
-    let memberWs: any[] = [];
-    for (const mRow of memberRows) {
-      const found = await db.select().from(workspacesTable).where(eq(workspacesTable.id, mRow.workspaceId));
-      if (found.length > 0) memberWs.push(found[0]);
-    }
-
-    // Deduplicate workspaces
-    const wsMap = new Map<string, any>();
-    for (const w of [...owned, ...memberWs]) wsMap.set(w.id, w);
-    const workspaces = Array.from(wsMap.values());
-
-    // --- 3. Determine which workspace IDs belong to this user ---
+    // --- 3. Determine which workspace IDs belong to this context ---
     const wsIds: string[] = workspaces.map((w) => w.id);
 
-    // --- 4. Fetch all data SCOPED to user's workspaces & defaults ---
+    // --- 4. Fetch all data SCOPED to workspaces & defaults ---
     const wsFilter = (col: any) =>
       wsIds.length > 0
-        ? or(...wsIds.map((id) => eq(col, id)), isNull(col))
-        : isNull(col);
+        ? or(...wsIds.map((id) => eq(col, id)), isNull(col), eq(col, "ws-default"))
+        : or(isNull(col), eq(col, "ws-default"));
 
     const [accounts, categories, transactions, budgets, savingsGoals, recurringTransactions] = await Promise.all([
       db.select().from(accountsTable).where(
