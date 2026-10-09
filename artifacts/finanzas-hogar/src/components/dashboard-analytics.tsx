@@ -18,6 +18,8 @@ type DashboardAnalyticsProps = {
   onYearChange: (year: number) => void;
   onOpenShareHousehold?: () => void;
   onNavigateToBudgets?: () => void;
+  onNavigateToHistory?: () => void;
+  onNavigateToGoals?: () => void;
 };
 
 const formatMoney = (amount: number) =>
@@ -42,6 +44,8 @@ export function DashboardAnalytics({
   onYearChange,
   onOpenShareHousehold,
   onNavigateToBudgets,
+  onNavigateToHistory,
+  onNavigateToGoals,
 }: DashboardAnalyticsProps) {
   const [activePieIndex, setActivePieIndex] = useState<number | undefined>();
   const [isRuleModalOpen, setIsRuleModalOpen] = useState(false);
@@ -463,42 +467,68 @@ export function DashboardAnalytics({
         {/* 3 Prominent Metrics: Previsto vs Gastado vs Quedó Disponible */}
         <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-3">
           {/* 1. Presupuesto Previsto */}
-          <div className="rounded-2xl border border-border/70 bg-card/80 p-4 shadow-xs">
-            <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider block">
-              Presupuesto Previsto
-            </span>
+          <div
+            onClick={onNavigateToBudgets}
+            className="cursor-pointer rounded-2xl border border-border/70 bg-card/80 p-4 shadow-xs transition hover:border-primary hover:bg-primary/5 active:scale-[0.98] group"
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider block">
+                Presupuesto Previsto
+              </span>
+              <span className="text-[10px] font-bold text-primary opacity-80 group-hover:opacity-100 group-hover:underline flex items-center gap-0.5">
+                Ver Plan <ChevronRight size={12} />
+              </span>
+            </div>
             <p className="mt-1 font-mono text-2xl font-extrabold text-foreground">
               {budgetSummary.totalPlanned > 0 ? formatMoney(budgetSummary.totalPlanned) : 'Sin Definir'}
             </p>
             <p className="mt-1 text-[11px] text-muted-foreground">
-              {budgetSummary.hasBudgets ? `${budgets.length} categorías presupuestadas` : `Base regla (${activeNeedsRatio + activeWantsRatio}%)`}
+              {budgetSummary.hasBudgets ? `${budgets.length} categorías presupuestadas` : `Base regla (${activeNeedsRatio + activeWantsRatio}%) • Toca para ajustar`}
             </p>
           </div>
 
           {/* 2. Total Gastado */}
-          <div className="rounded-2xl border border-border/70 bg-card/80 p-4 shadow-xs">
-            <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider block">
-              Total Gastado
-            </span>
+          <div
+            onClick={onNavigateToHistory}
+            className="cursor-pointer rounded-2xl border border-border/70 bg-card/80 p-4 shadow-xs transition hover:border-destructive hover:bg-destructive/5 active:scale-[0.98] group"
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider block">
+                Total Gastado
+              </span>
+              <span className="text-[10px] font-bold text-destructive opacity-80 group-hover:opacity-100 group-hover:underline flex items-center gap-0.5">
+                Ver Movimientos <ChevronRight size={12} />
+              </span>
+            </div>
             <p className="mt-1 font-mono text-2xl font-extrabold text-destructive">
               {formatMoney(budgetSummary.totalSpent)}
             </p>
             <p className="mt-1 text-[11px] text-muted-foreground font-semibold">
-              {budgetSummary.percentUsed}% del presupuesto consumido
+              {budgetSummary.percentUsed}% del presupuesto consumido • Toca para ver historial
             </p>
           </div>
 
           {/* 3. Quedó Disponible / Restante */}
-          <div className={`rounded-2xl border p-4 shadow-xs ${
-            budgetSummary.isOverBudget
-              ? 'border-destructive/40 bg-destructive/10'
-              : 'border-emerald-500/40 bg-emerald-500/10'
-          }`}>
-            <span className={`text-[11px] font-bold uppercase tracking-wider block ${
-              budgetSummary.isOverBudget ? 'text-destructive' : 'text-emerald-700 dark:text-emerald-400'
-            }`}>
-              {budgetSummary.isOverBudget ? 'Déficit Excedido' : 'Quedó Disponible (Restante)'}
-            </span>
+          <div
+            onClick={onNavigateToBudgets}
+            className={`cursor-pointer rounded-2xl border p-4 shadow-xs transition active:scale-[0.98] group ${
+              budgetSummary.isOverBudget
+                ? 'border-destructive/40 bg-destructive/10 hover:bg-destructive/15'
+                : 'border-emerald-500/40 bg-emerald-500/10 hover:bg-emerald-500/15'
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <span className={`text-[11px] font-bold uppercase tracking-wider block ${
+                budgetSummary.isOverBudget ? 'text-destructive' : 'text-emerald-700 dark:text-emerald-400'
+              }`}>
+                {budgetSummary.isOverBudget ? 'Déficit Excedido' : 'Quedó Disponible (Restante)'}
+              </span>
+              <span className={`text-[10px] font-bold flex items-center gap-0.5 opacity-80 group-hover:opacity-100 group-hover:underline ${
+                budgetSummary.isOverBudget ? 'text-destructive' : 'text-emerald-600 dark:text-emerald-400'
+              }`}>
+                Ver Detalle <ChevronRight size={12} />
+              </span>
+            </div>
             <p className={`mt-1 font-mono text-2xl font-extrabold ${
               budgetSummary.isOverBudget ? 'text-destructive' : 'text-emerald-600 dark:text-emerald-400'
             }`}>
@@ -516,9 +546,12 @@ export function DashboardAnalytics({
 
         {/* Global Progress Bar */}
         {budgetSummary.totalPlanned > 0 && (
-          <div className="mt-5 space-y-2">
+          <div
+            onClick={onNavigateToBudgets}
+            className="mt-5 space-y-2 cursor-pointer group"
+          >
             <div className="flex justify-between text-xs font-bold">
-              <span className="text-muted-foreground">Progreso de Consumo:</span>
+              <span className="text-muted-foreground group-hover:text-foreground transition">Progreso de Consumo:</span>
               <span className={`font-mono ${budgetSummary.isOverBudget ? 'text-destructive' : 'text-foreground'}`}>
                 {budgetSummary.percentUsed}% gastado
               </span>
@@ -541,18 +574,32 @@ export function DashboardAnalytics({
         {/* Category Budget Breakdown Preview */}
         {budgetSummary.categoryBudgetList.length > 0 && (
           <div className="mt-5 pt-4 border-t border-border/60">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3">
-              Desglose de Presupuestos Activos ({budgetSummary.categoryBudgetList.length})
-            </h4>
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                Desglose de Presupuestos Activos ({budgetSummary.categoryBudgetList.length})
+              </h4>
+              {onNavigateToBudgets && (
+                <button
+                  onClick={onNavigateToBudgets}
+                  className="text-xs font-bold text-primary hover:underline flex items-center gap-1"
+                >
+                  Gestionar <ChevronRight size={13} />
+                </button>
+              )}
+            </div>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {budgetSummary.categoryBudgetList.map((catB) => (
-                <div key={catB.id} className="rounded-2xl border border-border/60 bg-card/90 p-3.5 space-y-2 shadow-2xs">
+                <div
+                  key={catB.id}
+                  onClick={onNavigateToBudgets}
+                  className="cursor-pointer rounded-2xl border border-border/60 bg-card/90 p-3.5 space-y-2 shadow-2xs transition hover:border-primary/60 hover:bg-secondary/40 active:scale-[0.98] group"
+                >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <span className="grid h-7 w-7 place-items-center rounded-lg text-white" style={{ backgroundColor: catB.color }}>
                         <CategoryIcon iconName={catB.icon} size={14} />
                       </span>
-                      <span className="text-xs font-bold text-foreground truncate">{catB.categoryName}</span>
+                      <span className="text-xs font-bold text-foreground truncate group-hover:text-primary transition">{catB.categoryName}</span>
                     </div>
                     <span className={`text-[10px] font-mono font-bold ${catB.isOver ? 'text-destructive' : 'text-muted-foreground'}`}>
                       {catB.percent}%
@@ -618,19 +665,25 @@ export function DashboardAnalytics({
       {/* Summary KPI Cards + Safe Daily Spend (Ritmo Diario) */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {/* Consolidated Total Balance */}
-        <div className="rounded-2xl border border-primary/25 bg-gradient-to-br from-primary/10 via-card to-card p-5 shadow-xs transition hover:shadow-md">
+        <div
+          onClick={onNavigateToGoals}
+          className="cursor-pointer rounded-2xl border border-primary/25 bg-gradient-to-br from-primary/10 via-card to-card p-5 shadow-xs transition hover:border-primary hover:shadow-md active:scale-[0.98] group"
+        >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Patrimonio Neto</span>
+            <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider group-hover:text-foreground transition">Patrimonio Neto</span>
             <span className="grid h-8 w-8 place-items-center rounded-xl bg-primary/15 text-primary">
               <Wallet size={18} />
             </span>
           </div>
           <p className="mt-3 font-mono text-2xl font-extrabold text-foreground">{formatMoney(totalBalance)}</p>
-          <p className="mt-1 text-[11px] text-muted-foreground">{accounts.length} cuentas vinculadas</p>
+          <p className="mt-1 text-[11px] text-muted-foreground">{accounts.length} cuentas vinculadas • Ver Bóveda</p>
         </div>
 
         {/* Safe Daily Spend (Ritmo Diario para Gastar Hoy) */}
-        <div className="rounded-2xl border border-emerald-500/30 bg-gradient-to-br from-emerald-500/10 via-card to-card p-5 shadow-xs transition hover:shadow-md">
+        <div
+          onClick={onNavigateToBudgets}
+          className="cursor-pointer rounded-2xl border border-emerald-500/30 bg-gradient-to-br from-emerald-500/10 via-card to-card p-5 shadow-xs transition hover:border-emerald-500 hover:shadow-md active:scale-[0.98] group"
+        >
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">Gasto Seguro Hoy</span>
             <span className="grid h-8 w-8 place-items-center rounded-xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
@@ -642,35 +695,41 @@ export function DashboardAnalytics({
             <span className="text-xs font-semibold text-muted-foreground"> / día</span>
           </p>
           <p className="mt-1 text-[11px] text-muted-foreground">
-            {daysRemaining} días restantes en el mes
+            {daysRemaining} días restantes en el mes • Ver Presupuestos
           </p>
         </div>
 
         {/* Monthly Income & Expenses Ratio */}
-        <div className="rounded-2xl border border-border bg-card p-5 shadow-xs transition hover:shadow-md">
+        <div
+          onClick={onNavigateToHistory}
+          className="cursor-pointer rounded-2xl border border-border bg-card p-5 shadow-xs transition hover:border-destructive/50 hover:shadow-md active:scale-[0.98] group"
+        >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Flujo Mensual</span>
+            <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider group-hover:text-foreground transition">Flujo Mensual</span>
             <span className="grid h-8 w-8 place-items-center rounded-xl bg-destructive/15 text-destructive">
               <ArrowDownLeft size={18} />
             </span>
           </div>
           <p className="mt-3 font-mono text-2xl font-extrabold text-foreground">{formatMoney(monthlyExpenses)}</p>
           <p className="mt-1 text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold">
-            Ingresos: +{formatMoney(monthlyIncome)}
+            Ingresos: +{formatMoney(monthlyIncome)} • Ver Historial
           </p>
         </div>
 
         {/* Savings Rate KPI */}
-        <div className="rounded-2xl border border-border bg-card p-5 shadow-xs transition hover:shadow-md">
+        <div
+          onClick={onNavigateToGoals}
+          className="cursor-pointer rounded-2xl border border-border bg-card p-5 shadow-xs transition hover:border-purple-500/50 hover:shadow-md active:scale-[0.98] group"
+        >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Tasa de Ahorro</span>
+            <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider group-hover:text-foreground transition">Tasa de Ahorro</span>
             <span className="grid h-8 w-8 place-items-center rounded-xl bg-purple-500/15 text-purple-600 dark:text-purple-400">
               <TrendingUp size={18} />
             </span>
           </div>
           <p className="mt-3 font-mono text-2xl font-extrabold text-foreground">{savingsRate}%</p>
           <p className="mt-1 text-[11px] text-muted-foreground">
-            {netSavings >= 0 ? `+${formatMoney(netSavings)} ahorrados` : `Déficit de ${formatMoney(Math.abs(netSavings))}`}
+            {netSavings >= 0 ? `+${formatMoney(netSavings)} ahorrados` : `Déficit de ${formatMoney(Math.abs(netSavings))}`} • Ver Metas
           </p>
         </div>
       </div>

@@ -1042,6 +1042,8 @@ export function AppShell() {
             onYearChange={setSelectedYear}
             onOpenShareHousehold={() => setIsShareHouseholdOpen(true)}
             onNavigateToBudgets={() => setActiveTab('budgets')}
+            onNavigateToHistory={() => setActiveTab('history')}
+            onNavigateToGoals={() => setActiveTab('goals')}
           />
         )}
 
