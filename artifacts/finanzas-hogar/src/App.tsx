@@ -915,16 +915,16 @@ export function AppShell() {
       </aside>
 
       {/* Mobile Top Header */}
-      <header className="flex h-16 items-center justify-between border-b border-border bg-card/90 px-3 backdrop-blur-md md:hidden">
-        <div className="flex items-center gap-2">
-          <button onClick={() => setMobileMenuOpen(true)} className="p-1 text-foreground">
+      <header className="flex min-h-16 items-center justify-between border-b border-border bg-card/95 px-3 pt-[max(0.75rem,env(safe-area-inset-top))] pb-2 backdrop-blur-md md:hidden shrink-0 z-30">
+        <div className="flex items-center gap-1.5 min-w-0">
+          <button onClick={() => setMobileMenuOpen(true)} className="p-1 text-foreground shrink-0" title="Abrir Menú">
             <Menu size={22} />
           </button>
           
           {/* Active Workspace Selector Pill */}
           <button
             onClick={() => setIsHouseholdChoiceOpen(true)}
-            className={`flex items-center gap-1.5 rounded-xl border px-2.5 py-1 text-xs font-bold transition shadow-xs ${
+            className={`flex items-center gap-1.5 rounded-xl border px-2 py-1 text-xs font-bold transition shadow-xs min-w-0 ${
               activeWorkspace.inviteCode === '503020' || activeWorkspace.type === 'shared'
                 ? 'border-purple-500/40 bg-purple-500/15 text-purple-300'
                 : 'border-border bg-secondary/80 text-foreground'
@@ -932,33 +932,35 @@ export function AppShell() {
           >
             {activeWorkspace.inviteCode === '503020' || activeWorkspace.type === 'shared' ? (
               <>
-                <Home size={13} className="text-purple-400" />
-                <span className="truncate max-w-[110px]">Casa de Daniel</span>
+                <Home size={13} className="text-purple-400 shrink-0" />
+                <span className="truncate max-w-[85px] sm:max-w-[120px]">Casa de Daniel</span>
               </>
             ) : (
               <>
-                <UserIcon size={13} className="text-blue-400" />
-                <span className="truncate max-w-[110px]">Personal</span>
+                <UserIcon size={13} className="text-blue-400 shrink-0" />
+                <span className="truncate max-w-[85px] sm:max-w-[120px]">Personal</span>
               </>
             )}
-            <span className="text-[9px] text-muted-foreground">▼</span>
+            <span className="text-[9px] text-muted-foreground shrink-0">▼</span>
           </button>
         </div>
-        <div className="flex items-center gap-2">
+
+        <div className="flex items-center gap-1.5 shrink-0">
           <button
             type="button"
             onClick={() => fetchCloudData(true)}
             className="p-1.5 rounded-lg text-foreground/80 hover:text-primary transition hover:bg-secondary/60"
             title="Sincronizar con PostgreSQL"
           >
-            <RefreshCw size={16} className={isSyncing ? "animate-spin text-primary" : "text-emerald-500"} />
+            <RefreshCw size={15} className={isSyncing ? "animate-spin text-primary" : "text-emerald-500"} />
           </button>
           <button
             onClick={() => setIsShareHouseholdOpen(true)}
-            className="flex items-center gap-1 rounded-xl border border-purple-500/40 bg-purple-500/15 px-2.5 py-1 text-xs font-bold text-purple-400 hover:bg-purple-500/25 transition shadow-xs"
+            className="flex items-center gap-1 rounded-xl border border-purple-500/40 bg-purple-500/15 px-2 py-1 text-xs font-bold text-purple-400 hover:bg-purple-500/25 transition shadow-xs"
             title="Compartir Hogar mediante Enlace"
           >
-            <Share2 size={13} /> Compartir
+            <Share2 size={13} />
+            <span className="hidden min-[380px]:inline text-[11px]">Compartir</span>
           </button>
           <button
             onClick={() => setIsAuthModalOpen(true)}
@@ -967,7 +969,7 @@ export function AppShell() {
             {dataState.user ? (
               <UserAvatar picture={dataState.user.picture} name={dataState.user.name} size="xs" isSuperAdmin={isSuperAdmin} />
             ) : (
-              <LogIn size={20} />
+              <LogIn size={19} />
             )}
           </button>
         </div>
@@ -1105,7 +1107,7 @@ export function AppShell() {
       </main>
 
       {/* Modern Mobile Bottom Navigation Bar (App Nativa Style) */}
-      <nav className="fixed bottom-0 left-0 right-0 z-30 flex h-16 items-center justify-around border-t border-border/80 bg-card/95 backdrop-blur-md px-2 md:hidden">
+      <nav className="fixed bottom-0 left-0 right-0 z-30 flex h-[calc(4rem+env(safe-area-inset-bottom,0px))] items-center justify-around border-t border-border/80 bg-card/95 backdrop-blur-md px-2 pb-[env(safe-area-inset-bottom,0px)] md:hidden">
         <button
           onClick={() => setActiveTab('dashboard')}
           className={`flex flex-col items-center justify-center gap-1 flex-1 py-1 transition ${
