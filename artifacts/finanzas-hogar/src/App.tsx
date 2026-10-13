@@ -525,11 +525,15 @@ export function AppShell() {
 
   // Fast Entry Save Handler
   const handleSaveTransaction = (newTxData: Omit<Transaction, 'id' | 'createdAt'>) => {
+    const creatorName = newTxData.createdByName || (dataState.user?.name ? (dataState.user.name.toLowerCase().includes('ariadna') ? 'Ariadna' : 'Daniel') : 'Daniel');
+    const creatorUserId = newTxData.createdByUserId || dataState.user?.id || (creatorName === 'Ariadna' ? 'usr-ariadna' : 'usr-daniel');
+
     const newTx: Transaction = {
       ...newTxData,
       id: `tx-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       workspaceId: activeWorkspace.id,
-      createdByUserId: dataState.user?.id,
+      createdByUserId: creatorUserId,
+      createdByName: creatorName,
       createdAt: new Date().toISOString(),
     };
 
@@ -1089,6 +1093,7 @@ export function AppShell() {
             accounts={dataState.accounts}
             categories={dataState.categories}
             fullDataState={dataState}
+            currentUser={dataState.user}
             onDeleteTransaction={handleDeleteTransaction}
           />
         )}
@@ -1168,6 +1173,7 @@ export function AppShell() {
         onClose={() => setIsFastEntryOpen(false)}
         accounts={dataState.accounts}
         categories={dataState.categories}
+        currentUser={dataState.user}
         onSaveTransaction={handleSaveTransaction}
       />
 

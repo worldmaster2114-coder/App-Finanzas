@@ -187,6 +187,18 @@ financeRouter.get("/state", async (req, res) => {
       db.select().from(recurringTransactionsTable).where(wsFilter(recurringTransactionsTable.workspaceId)),
     ]);
 
+    const mappedTransactions = (transactions || []).map((t: any) => {
+      if (t.createdByUserId && typeof t.createdByUserId === 'string' && t.createdByUserId.includes(':::')) {
+        const [uid, name] = t.createdByUserId.split(':::');
+        return {
+          ...t,
+          createdByUserId: uid,
+          createdByName: name,
+        };
+      }
+      return t;
+    });
+
     return res.json({
       status: "synced",
       user: userRecord,
@@ -194,7 +206,7 @@ financeRouter.get("/state", async (req, res) => {
       activeWorkspaceId: userRecord?.activeWorkspaceId || workspaces[0]?.id || null,
       accounts: accounts.length > 0 ? accounts : [],
       categories: categories.length > 0 ? categories : null,
-      transactions: transactions || [],
+      transactions: mappedTransactions,
       budgets: budgets || [],
       savingsGoals: savingsGoals || [],
       recurringTransactions: recurringTransactions || [],
@@ -418,6 +430,10 @@ financeRouter.post("/sync", async (req, res) => {
     // 5. Sync Transactions
     if (Array.isArray(transactions) && transactions.length > 0) {
       for (const tx of transactions) {
+        const creatorIdValue = tx.createdByName
+          ? `${tx.createdByUserId || user?.id || 'usr'}:::${tx.createdByName}`
+          : (tx.createdByUserId || user?.id);
+
         await db
           .insert(transactionsTable)
           .values({
@@ -431,7 +447,7 @@ financeRouter.post("/sync", async (req, res) => {
             date: tx.date,
             note: tx.note,
             isRecurring: tx.isRecurring || false,
-            createdByUserId: tx.createdByUserId || user?.id,
+            createdByUserId: creatorIdValue,
           })
           .onConflictDoUpdate({
             target: transactionsTable.id,
@@ -442,6 +458,7 @@ financeRouter.post("/sync", async (req, res) => {
               date: tx.date,
               accountId: tx.accountId,
               categoryId: tx.categoryId,
+              createdByUserId: creatorIdValue,
             },
           });
       }
@@ -760,6 +777,18 @@ financeRouter.post("/join-direct", async (req, res) => {
     const savingsGoals = await db.select().from(savingsGoalsTable).where(wsFilter(savingsGoalsTable.workspaceId));
     const recurringTransactions = await db.select().from(recurringTransactionsTable).where(wsFilter(recurringTransactionsTable.workspaceId));
 
+    const mappedTransactions = (transactions || []).map((t: any) => {
+      if (t.createdByUserId && typeof t.createdByUserId === 'string' && t.createdByUserId.includes(':::')) {
+        const [uid, name] = t.createdByUserId.split(':::');
+        return {
+          ...t,
+          createdByUserId: uid,
+          createdByName: name,
+        };
+      }
+      return t;
+    });
+
     return res.json({
       success: true,
       status: "synced",
@@ -769,7 +798,7 @@ financeRouter.post("/join-direct", async (req, res) => {
       activeWorkspaceId: workspace.id,
       accounts: accounts.length > 0 ? accounts : [],
       categories: categories.length > 0 ? categories : null,
-      transactions: transactions || [],
+      transactions: mappedTransactions,
       budgets: budgets || [],
       savingsGoals: savingsGoals || [],
       recurringTransactions: recurringTransactions || [],

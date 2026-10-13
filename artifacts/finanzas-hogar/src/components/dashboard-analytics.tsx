@@ -111,6 +111,42 @@ export function DashboardAnalytics({
     return Math.max(0, Math.round(availablePool / daysRemaining));
   }, [monthlyIncome, activeNeedsRatio, activeWantsRatio, monthlyExpenses, pendingRecurringExpenses, daysRemaining]);
 
+  // Household member spending distribution (Daniel Verde vs Ariadna Amarillo)
+  const householdSplit = useMemo(() => {
+    let danielSpent = 0;
+    let ariadnaSpent = 0;
+    let danielCount = 0;
+    let ariadnaCount = 0;
+
+    monthTransactions.forEach((tx) => {
+      if (tx.type !== 'expense') return;
+      const rawName = (tx.createdByName || '').toLowerCase();
+      const rawId = (tx.createdByUserId || '').toLowerCase();
+      const isAriadna = rawName.includes('ariadna') || rawName.includes('arianna') || rawName.includes('lucero') || rawId.includes('ariadna') || rawId.includes('arianna') || rawId.includes('lucero');
+      if (isAriadna) {
+        ariadnaSpent += tx.amount;
+        ariadnaCount += 1;
+      } else {
+        danielSpent += tx.amount;
+        danielCount += 1;
+      }
+    });
+
+    const total = danielSpent + ariadnaSpent;
+    const danielRatio = total > 0 ? Math.round((danielSpent / total) * 100) : 50;
+    const ariadnaRatio = total > 0 ? 100 - danielRatio : 50;
+
+    return {
+      danielSpent,
+      ariadnaSpent,
+      danielCount,
+      ariadnaCount,
+      total,
+      danielRatio,
+      ariadnaRatio,
+    };
+  }, [monthTransactions]);
+
   // -------------------------------------------------------------
   // PRESUPUESTO PREVISTO VS GASTADO REAL
   // -------------------------------------------------------------
@@ -630,6 +666,93 @@ export function DashboardAnalytics({
                   </div>
                 </div>
               ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Household Member Spending Split (Daniel Verde vs Ariadna Amarillo) */}
+      <div className="rounded-2xl border border-border bg-card p-4 sm:p-5 shadow-xs space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="grid h-8 w-8 place-items-center rounded-xl bg-purple-500/15 text-purple-600 dark:text-purple-300">
+              <Users size={18} />
+            </span>
+            <div>
+              <h3 className="font-serif text-base font-bold text-foreground">Aportes del Hogar por Miembro</h3>
+              <p className="text-[11px] text-muted-foreground">Gastos de este mes registrados por Daniel y Ariadna</p>
+            </div>
+          </div>
+          {onNavigateToHistory && (
+            <button
+              onClick={onNavigateToHistory}
+              className="flex items-center gap-1 text-[11px] font-bold text-primary hover:underline cursor-pointer"
+            >
+              Ver en Historial <ChevronRight size={13} />
+            </button>
+          )}
+        </div>
+
+        <div className="grid grid-cols-2 gap-3 pt-1">
+          {/* Daniel Card (Verde) */}
+          <div
+            onClick={onNavigateToHistory}
+            className="cursor-pointer p-3 rounded-xl border-l-[6px] border-l-emerald-500 border border-emerald-500/30 bg-emerald-500/5 hover:bg-emerald-500/10 transition"
+          >
+            <div className="flex items-center justify-between">
+              <span className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-800 dark:text-emerald-300">
+                <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                Daniel
+              </span>
+              <span className="text-[10px] font-mono font-bold text-emerald-700 dark:text-emerald-400">
+                {householdSplit.danielCount} registros
+              </span>
+            </div>
+            <p className="mt-1 font-mono text-xl font-extrabold text-foreground">
+              {formatMoney(householdSplit.danielSpent)}
+            </p>
+            <p className="text-[10px] text-muted-foreground">
+              {householdSplit.danielRatio}% de los gastos del mes
+            </p>
+          </div>
+
+          {/* Ariadna Card (Amarillo) */}
+          <div
+            onClick={onNavigateToHistory}
+            className="cursor-pointer p-3 rounded-xl border-l-[6px] border-l-amber-400 border border-amber-400/30 bg-amber-400/5 hover:bg-amber-400/10 transition"
+          >
+            <div className="flex items-center justify-between">
+              <span className="inline-flex items-center gap-1.5 text-xs font-bold text-amber-900 dark:text-amber-200">
+                <span className="h-2 w-2 rounded-full bg-amber-400" />
+                Ariadna
+              </span>
+              <span className="text-[10px] font-mono font-bold text-amber-800 dark:text-amber-300">
+                {householdSplit.ariadnaCount} registros
+              </span>
+            </div>
+            <p className="mt-1 font-mono text-xl font-extrabold text-foreground">
+              {formatMoney(householdSplit.ariadnaSpent)}
+            </p>
+            <p className="text-[10px] text-muted-foreground">
+              {householdSplit.ariadnaRatio}% de los gastos del mes
+            </p>
+          </div>
+        </div>
+
+        {/* Visual Dual-tone Proportion Bar */}
+        {householdSplit.total > 0 && (
+          <div className="space-y-1 pt-1">
+            <div className="h-2 w-full rounded-full bg-secondary overflow-hidden flex">
+              <div
+                style={{ width: `${householdSplit.danielRatio}%` }}
+                className="bg-emerald-500 transition-all duration-500"
+                title={`Daniel: ${householdSplit.danielRatio}%`}
+              />
+              <div
+                style={{ width: `${householdSplit.ariadnaRatio}%` }}
+                className="bg-amber-400 transition-all duration-500"
+                title={`Ariadna: ${householdSplit.ariadnaRatio}%`}
+              />
             </div>
           </div>
         )}

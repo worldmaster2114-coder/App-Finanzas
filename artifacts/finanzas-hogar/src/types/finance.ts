@@ -41,6 +41,7 @@ export type Transaction = {
   isShared?: boolean;
   splitRatio?: number; // e.g. 50 for 50/50 split
   createdByUserId?: string;
+  createdByName?: string;
   createdAt: string;
 };
 

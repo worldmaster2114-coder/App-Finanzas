@@ -1,12 +1,13 @@
-import { useState, useMemo } from 'react';
-import { Account, Category, Transaction, TransactionType } from '@/types/finance';
-import { ArrowDownLeft, ArrowUpRight, ArrowLeftRight, Check, ChevronDown, Delete, X, Wallet, Building2, CreditCard, PiggyBank, ShoppingBasket, Home, Zap, Car, HeartPulse, GraduationCap, Coffee, Tag, Landmark, Briefcase, TrendingUp, CircleDollarSign, Users, Calculator, Sparkles, Percent } from 'lucide-react';
+import { useState, useMemo, useEffect } from 'react';
+import { Account, Category, Transaction, TransactionType, UserProfile } from '@/types/finance';
+import { ArrowDownLeft, ArrowUpRight, ArrowLeftRight, Check, ChevronDown, Delete, X, Wallet, Building2, CreditCard, PiggyBank, ShoppingBasket, Home, Zap, Car, HeartPulse, GraduationCap, Coffee, Tag, Landmark, Briefcase, TrendingUp, CircleDollarSign, Users, Calculator, Sparkles, Percent, UserCheck } from 'lucide-react';
 
 type FastEntryModalProps = {
   isOpen: boolean;
   onClose: () => void;
   accounts: Account[];
   categories: Category[];
+  currentUser?: UserProfile | null;
   onSaveTransaction: (transaction: Omit<Transaction, 'id' | 'createdAt'>) => void;
 };
 
@@ -42,7 +43,7 @@ function evaluateMath(expr: string): number | null {
   return null;
 }
 
-export function FastEntryModal({ isOpen, onClose, accounts, categories, onSaveTransaction }: FastEntryModalProps) {
+export function FastEntryModal({ isOpen, onClose, accounts, categories, currentUser, onSaveTransaction }: FastEntryModalProps) {
   const [type, setType] = useState<TransactionType>('expense');
   const [amountStr, setAmountStr] = useState('');
   const [selectedAccountId, setSelectedAccountId] = useState(accounts[0]?.id || '');
@@ -52,6 +53,22 @@ export function FastEntryModal({ isOpen, onClose, accounts, categories, onSaveTr
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false);
   const [error, setError] = useState('');
+
+  // Default household member author detection
+  const initialAuthor = useMemo<'Daniel' | 'Ariadna'>(() => {
+    const name = (currentUser?.name || '').toLowerCase();
+    const email = (currentUser?.email || '').toLowerCase();
+    if (name.includes('ariadna') || name.includes('arianna') || name.includes('lucero') || email.includes('ariadna')) {
+      return 'Ariadna';
+    }
+    return 'Daniel';
+  }, [currentUser]);
+
+  const [registeredBy, setRegisteredBy] = useState<'Daniel' | 'Ariadna'>(initialAuthor);
+
+  useEffect(() => {
+    setRegisteredBy(initialAuthor);
+  }, [initialAuthor, isOpen]);
 
   // Shared household split feature (50/50 or custom)
   const [isSharedSplit, setIsSharedSplit] = useState(false);
@@ -155,6 +172,8 @@ export function FastEntryModal({ isOpen, onClose, accounts, categories, onSaveTr
       isRecurring: false,
       isShared: isSharedSplit && type === 'expense',
       splitRatio: isSharedSplit && type === 'expense' ? splitRatio : undefined,
+      createdByName: registeredBy,
+      createdByUserId: registeredBy === 'Ariadna' ? 'usr-ariadna' : 'usr-daniel',
     });
 
     // Reset & Close
@@ -346,6 +365,41 @@ export function FastEntryModal({ isOpen, onClose, accounts, categories, onSaveTr
             </div>
           </div>
         )}
+
+        {/* Household Member Selector (Daniel = Verde, Ariadna = Amarillo) */}
+        <div className="mt-3 rounded-2xl border border-border/70 bg-secondary/30 p-2.5">
+          <div className="flex items-center justify-between gap-2">
+            <span className="flex items-center gap-1.5 text-[11px] font-bold text-muted-foreground uppercase tracking-wide">
+              <UserCheck size={13} className="text-primary" /> Registrado por:
+            </span>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => setRegisteredBy('Daniel')}
+                className={`flex items-center gap-1.5 rounded-xl px-3 py-1 text-xs font-bold transition focus-ring ${
+                  registeredBy === 'Daniel'
+                    ? 'border-2 border-emerald-500 bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 shadow-xs'
+                    : 'border border-border/60 bg-card text-muted-foreground hover:bg-secondary'
+                }`}
+              >
+                <span className="h-2 w-2 rounded-full bg-emerald-500 shrink-0" />
+                <span>Daniel</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setRegisteredBy('Ariadna')}
+                className={`flex items-center gap-1.5 rounded-xl px-3 py-1 text-xs font-bold transition focus-ring ${
+                  registeredBy === 'Ariadna'
+                    ? 'border-2 border-amber-400 bg-amber-400/20 text-amber-900 dark:text-amber-200 shadow-xs'
+                    : 'border border-border/60 bg-card text-muted-foreground hover:bg-secondary'
+                }`}
+              >
+                <span className="h-2 w-2 rounded-full bg-amber-400 shrink-0" />
+                <span>Ariadna</span>
+              </button>
+            </div>
+          </div>
+        </div>
 
         {/* Note & Date optional fields */}
         <div className="mt-3 grid grid-cols-2 gap-2">
