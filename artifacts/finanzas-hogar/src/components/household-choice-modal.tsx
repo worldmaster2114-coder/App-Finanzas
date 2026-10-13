@@ -18,7 +18,7 @@ type HouseholdChoiceModalProps = {
   isOpen: boolean;
   onClose: () => void;
   user: UserProfile | null;
-  onJoinHousehold: (code: string) => Promise<void>;
+  onJoinHousehold: (code: string, collaboratorName?: string) => Promise<void>;
   onContinuePersonal: () => void;
   activeWorkspace?: Workspace;
 };
@@ -39,8 +39,18 @@ export function HouseholdChoiceModal({
 
   const [selectedOption, setSelectedOption] = useState<'invite' | 'code' | 'personal'>('invite');
   const [customCode, setCustomCode] = useState('');
+  const [collaboratorName, setCollaboratorName] = useState(
+    user?.name && user.name !== 'Usuario' ? user.name : ''
+  );
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+
+  // Sync initial collaborator name
+  useEffect(() => {
+    if (user?.name && user.name !== 'Usuario' && !collaboratorName) {
+      setCollaboratorName(user.name);
+    }
+  }, [user]);
 
   // Read invite query params from URL on open
   useEffect(() => {
@@ -62,15 +72,21 @@ export function HouseholdChoiceModal({
 
   if (!isOpen) return null;
 
-  const firstName = user?.name ? user.name.split(' ')[0] : 'Usuario';
+  const firstName = collaboratorName || (user?.name ? user.name.split(' ')[0] : 'Usuario');
 
   const handleConfirm = async () => {
     setError('');
     setIsLoading(true);
 
     try {
+      const targetName = collaboratorName.trim() || user?.name || undefined;
       if (selectedOption === 'invite' && inviteData.code) {
-        await onJoinHousehold(inviteData.code);
+        if (!targetName || targetName === 'Usuario') {
+          setError('Por favor escribe tu nombre de colaborador');
+          setIsLoading(false);
+          return;
+        }
+        await onJoinHousehold(inviteData.code, targetName);
         onClose();
       } else if (selectedOption === 'code') {
         const clean = customCode.trim().toUpperCase();
@@ -79,7 +95,12 @@ export function HouseholdChoiceModal({
           setIsLoading(false);
           return;
         }
-        await onJoinHousehold(clean);
+        if (!targetName || targetName === 'Usuario') {
+          setError('Por favor escribe tu nombre de colaborador');
+          setIsLoading(false);
+          return;
+        }
+        await onJoinHousehold(clean, targetName);
         onClose();
       } else {
         onContinuePersonal();
@@ -250,6 +271,26 @@ export function HouseholdChoiceModal({
           </div>
 
         </div>
+
+        {/* Collaborator Name Field */}
+        {(selectedOption === 'invite' || selectedOption === 'code') && (
+          <div className="rounded-2xl border border-purple-500/30 bg-purple-500/5 p-3.5 space-y-1.5 animate-in fade-in-50">
+            <label className="text-xs font-bold text-foreground flex items-center gap-1.5">
+              <User size={14} className="text-purple-400" /> Tu Nombre de Colaborador(a) en el Hogar:
+            </label>
+            <input
+              type="text"
+              required
+              placeholder="Ej. Lucero, Ariadna o Daniel"
+              value={collaboratorName}
+              onChange={(e) => setCollaboratorName(e.target.value)}
+              className="h-10 w-full rounded-xl border border-purple-500/40 bg-background px-3 text-xs outline-none focus:border-purple-400 font-bold text-foreground"
+            />
+            <p className="text-[10px] text-muted-foreground leading-tight">
+              Tus aportes, presupuestos y gastos en este hogar se identificarán con este nombre.
+            </p>
+          </div>
+        )}
 
         {error && (
           <p className="text-xs font-semibold text-destructive text-center">{error}</p>

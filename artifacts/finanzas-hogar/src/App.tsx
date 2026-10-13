@@ -473,12 +473,15 @@ export function AppShell() {
   };
 
   // Join Shared Workspace Handler
-  const handleJoinSharedWorkspace = async (code: string) => {
-    const userToUse = dataState.user || {
-      id: `usr-${Date.now()}`,
-      email: 'usuario@grupowalnut.com',
-      name: 'Usuario',
-      hasCompletedOnboarding: true,
+  const handleJoinSharedWorkspace = async (code: string, collaboratorName?: string) => {
+    const effectiveName = (collaboratorName && collaboratorName.trim()) || (dataState.user?.name && dataState.user.name.trim()) || 'Colaborador';
+    const userToUse: UserProfile = {
+      ...(dataState.user || {
+        id: `usr-${Date.now()}`,
+        email: 'usuario@grupowalnut.com',
+        hasCompletedOnboarding: true,
+      }),
+      name: effectiveName,
     };
     await executeJoinDirect(code, userToUse);
   };
@@ -525,8 +528,8 @@ export function AppShell() {
 
   // Fast Entry Save Handler
   const handleSaveTransaction = (newTxData: Omit<Transaction, 'id' | 'createdAt'>) => {
-    const creatorName = newTxData.createdByName || (dataState.user?.name ? (dataState.user.name.toLowerCase().includes('ariadna') ? 'Ariadna' : 'Daniel') : 'Daniel');
-    const creatorUserId = newTxData.createdByUserId || dataState.user?.id || (creatorName === 'Ariadna' ? 'usr-ariadna' : 'usr-daniel');
+    const creatorName = (newTxData.createdByName || dataState.user?.name || 'Miembro').trim();
+    const creatorUserId = newTxData.createdByUserId || dataState.user?.id || `usr-${Date.now()}`;
 
     const newTx: Transaction = {
       ...newTxData,
@@ -1035,6 +1038,7 @@ export function AppShell() {
             transactions={dataState.transactions}
             budgets={dataState.budgets}
             recurringTransactions={dataState.recurringTransactions}
+            currentUser={dataState.user}
             budgetRuleConfig={dataState.budgetRuleConfig || {
               strategy: (activeWorkspace?.budgetRule as any) || '50-30-20',
               needs: activeWorkspace?.customRuleConfig?.needs || 50,
@@ -1175,6 +1179,7 @@ export function AppShell() {
         onClose={() => setIsFastEntryOpen(false)}
         accounts={dataState.accounts}
         categories={dataState.categories}
+        transactions={dataState.transactions}
         currentUser={dataState.user}
         onSaveTransaction={handleSaveTransaction}
       />
@@ -1227,12 +1232,15 @@ export function AppShell() {
         isOpen={isHouseholdChoiceOpen}
         onClose={() => setIsHouseholdChoiceOpen(false)}
         user={dataState.user}
-        onJoinHousehold={async (code: string) => {
-          const userToUse = dataState.user || {
-            id: `usr-${Date.now()}`,
-            email: 'usuario@grupowalnut.com',
-            name: 'Usuario',
-            hasCompletedOnboarding: true,
+        onJoinHousehold={async (code: string, collaboratorName?: string) => {
+          const effectiveName = (collaboratorName && collaboratorName.trim()) || (dataState.user?.name && dataState.user.name.trim()) || 'Colaborador';
+          const userToUse: UserProfile = {
+            ...(dataState.user || {
+              id: `usr-${Date.now()}`,
+              email: 'usuario@grupowalnut.com',
+              hasCompletedOnboarding: true,
+            }),
+            name: effectiveName,
           };
           await executeJoinDirect(code, userToUse);
         }}

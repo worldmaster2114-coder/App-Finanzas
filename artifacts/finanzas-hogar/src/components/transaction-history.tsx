@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Account, Category, Transaction, UserProfile } from '@/types/finance';
 import { CategoryIcon } from './fast-entry-modal';
 import { exportToCSV, exportToJSON } from '@/services/storage';
-import { resolveTransactionAuthor } from '@/lib/household-authors';
+import { Collaborator, getHouseholdCollaborators, resolveTransactionAuthor } from '@/lib/household-authors';
 import { Search, Trash2, FileJson, FileSpreadsheet, ChevronDown, Users, UserCheck } from 'lucide-react';
 
 type TransactionHistoryProps = {
@@ -11,6 +11,7 @@ type TransactionHistoryProps = {
   categories: Category[];
   fullDataState: any;
   currentUser?: UserProfile | null;
+  collaborators?: Collaborator[];
   onDeleteTransaction: (id: string) => void;
 };
 
@@ -25,6 +26,7 @@ export function TransactionHistory({
   categories,
   fullDataState,
   currentUser,
+  collaborators,
   onDeleteTransaction,
 }: TransactionHistoryProps) {
   const [search, setSearch] = useState('');
@@ -33,47 +35,51 @@ export function TransactionHistory({
   const [typeFilter, setTypeFilter] = useState('Todos');
   const [timeframeFilter, setTimeframeFilter] = useState<'all' | 'today' | 'week' | 'month' | 'prev_month'>('month');
   const [sharedFilter, setSharedFilter] = useState<'all' | 'shared_only' | 'personal_only'>('all');
-  const [memberFilter, setMemberFilter] = useState<'all' | 'daniel' | 'ariadna'>('all');
+  const [memberFilter, setMemberFilter] = useState<string>('all');
+
+  // Dynamic household collaborators resolution
+  const collaboratorList = useMemo(() => {
+    if (collaborators && collaborators.length > 0) return collaborators;
+    return getHouseholdCollaborators(transactions, currentUser);
+  }, [collaborators, transactions, currentUser]);
 
   // Household member stats calculation across active timeframe
   const memberStats = useMemo(() => {
-    let danielExpenses = 0;
-    let danielIncomes = 0;
-    let danielCount = 0;
+    const map = new Map<string, { col: Collaborator; expenses: number; incomes: number; count: number }>();
+    collaboratorList.forEach((col) => {
+      map.set(col.name.toLowerCase(), { col, expenses: 0, incomes: 0, count: 0 });
+    });
 
-    let ariadnaExpenses = 0;
-    let ariadnaIncomes = 0;
-    let ariadnaCount = 0;
+    let totalExpenses = 0;
 
     transactions.forEach((tx) => {
-      const author = resolveTransactionAuthor(tx, currentUser);
-      if (author.isAriadna) {
-        ariadnaCount += 1;
-        if (tx.type === 'expense') ariadnaExpenses += tx.amount;
-        if (tx.type === 'income') ariadnaIncomes += tx.amount;
-      } else {
-        danielCount += 1;
-        if (tx.type === 'expense') danielExpenses += tx.amount;
-        if (tx.type === 'income') danielIncomes += tx.amount;
+      const author = resolveTransactionAuthor(tx, currentUser, collaboratorList);
+      const key = author.name.toLowerCase();
+      let entry = map.get(key);
+      if (!entry) {
+        entry = { col: author, expenses: 0, incomes: 0, count: 0 };
+        map.set(key, entry);
+      }
+      entry.count += 1;
+      if (tx.type === 'expense') {
+        entry.expenses += tx.amount;
+        totalExpenses += tx.amount;
+      }
+      if (tx.type === 'income') {
+        entry.incomes += tx.amount;
       }
     });
 
-    const totalExpenses = danielExpenses + ariadnaExpenses;
-    const danielRatio = totalExpenses > 0 ? Math.round((danielExpenses / totalExpenses) * 100) : 50;
-    const ariadnaRatio = totalExpenses > 0 ? 100 - danielRatio : 50;
+    const list = Array.from(map.values()).map(({ col, expenses, incomes, count }) => {
+      const ratio = totalExpenses > 0 ? Math.round((expenses / totalExpenses) * 100) : (map.size > 0 ? Math.round(100 / map.size) : 0);
+      return { col, expenses, incomes, count, ratio };
+    });
 
     return {
-      danielExpenses,
-      danielIncomes,
-      danielCount,
-      ariadnaExpenses,
-      ariadnaIncomes,
-      ariadnaCount,
+      list,
       totalExpenses,
-      danielRatio,
-      ariadnaRatio,
     };
-  }, [transactions, currentUser]);
+  }, [transactions, currentUser, collaboratorList]);
 
   const filtered = useMemo(() => {
     const now = new Date();
@@ -98,11 +104,10 @@ export function TransactionHistory({
           if (tDate.getMonth() !== prevMonthDate.getMonth() || tDate.getFullYear() !== prevMonthDate.getFullYear()) return false;
         }
 
-        // Member author filtering (Daniel vs Ariadna)
+        // Dynamic member author filtering
         if (memberFilter !== 'all') {
-          const author = resolveTransactionAuthor(t, currentUser);
-          if (memberFilter === 'daniel' && !author.isDaniel) return false;
-          if (memberFilter === 'ariadna' && !author.isAriadna) return false;
+          const author = resolveTransactionAuthor(t, currentUser, collaboratorList);
+          if (author.name.toLowerCase() !== memberFilter.toLowerCase()) return false;
         }
 
         // Shared expense filtering
@@ -118,7 +123,7 @@ export function TransactionHistory({
         if (search.trim()) {
           const note = (t.note || '').toLowerCase();
           const catName = (categories.find((c) => c.id === t.categoryId)?.name || '').toLowerCase();
-          const author = resolveTransactionAuthor(t, currentUser);
+          const author = resolveTransactionAuthor(t, currentUser, collaboratorList);
           const authorName = author.name.toLowerCase();
           const q = search.toLowerCase();
           if (!note.includes(q) && !catName.includes(q) && !authorName.includes(q)) return false;
@@ -126,7 +131,7 @@ export function TransactionHistory({
         return true;
       })
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [transactions, categories, categoryFilter, accountFilter, typeFilter, timeframeFilter, sharedFilter, memberFilter, search, currentUser]);
+  }, [transactions, categories, categoryFilter, accountFilter, typeFilter, timeframeFilter, sharedFilter, memberFilter, search, currentUser, collaboratorList]);
 
   return (
     <div className="space-y-6">
@@ -135,7 +140,7 @@ export function TransactionHistory({
         <div>
           <h2 className="font-serif text-2xl font-bold tracking-tight text-foreground">Historial del Hogar</h2>
           <p className="text-xs text-muted-foreground">
-            Consulta, filtra y separa los registros de <strong className="text-emerald-600 dark:text-emerald-400">Daniel (Verde)</strong> y <strong className="text-amber-600 dark:text-amber-400">Ariadna (Amarillo)</strong>.
+            Consulta, filtra y separa los registros de los colaboradores del hogar por código de color.
           </p>
         </div>
 
@@ -155,7 +160,7 @@ export function TransactionHistory({
         </div>
       </div>
 
-      {/* Household Split Summary Cards & Color Legend (Daniel = Verde, Ariadna = Amarillo) */}
+      {/* Household Split Summary Cards & Color Legend (Dynamically mapped with real collaborator names) */}
       <div className="rounded-2xl border border-border bg-card p-4 shadow-xs space-y-3">
         <div className="flex items-center justify-between text-xs">
           <span className="font-bold flex items-center gap-1.5 text-foreground">
@@ -166,82 +171,58 @@ export function TransactionHistory({
           </span>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          {/* Daniel Card (Verde) */}
-          <button
-            type="button"
-            onClick={() => setMemberFilter(memberFilter === 'daniel' ? 'all' : 'daniel')}
-            className={`flex flex-col gap-1 p-3 rounded-xl border-l-[6px] border-l-emerald-500 border transition text-left ${
-              memberFilter === 'daniel'
-                ? 'bg-emerald-500/15 border-emerald-500/50 shadow-xs'
-                : 'bg-emerald-500/5 border-border/80 hover:bg-emerald-500/10'
-            }`}
-          >
-            <div className="flex items-center justify-between">
-              <span className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-800 dark:text-emerald-300">
-                <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                Daniel
-              </span>
-              <span className="text-[10px] font-mono font-bold text-emerald-700 dark:text-emerald-400">
-                {memberStats.danielCount} movs
-              </span>
-            </div>
-            <p className="font-mono text-base font-extrabold text-foreground">
-              {formatMoney(memberStats.danielExpenses)}
-            </p>
-            <p className="text-[10px] text-muted-foreground">
-              {memberStats.danielRatio}% del gasto total
-            </p>
-          </button>
-
-          {/* Ariadna Card (Amarillo) */}
-          <button
-            type="button"
-            onClick={() => setMemberFilter(memberFilter === 'ariadna' ? 'all' : 'ariadna')}
-            className={`flex flex-col gap-1 p-3 rounded-xl border-l-[6px] border-l-amber-400 border transition text-left ${
-              memberFilter === 'ariadna'
-                ? 'bg-amber-400/20 border-amber-400/50 shadow-xs'
-                : 'bg-amber-400/5 border-border/80 hover:bg-amber-400/10'
-            }`}
-          >
-            <div className="flex items-center justify-between">
-              <span className="inline-flex items-center gap-1.5 text-xs font-bold text-amber-900 dark:text-amber-200">
-                <span className="h-2 w-2 rounded-full bg-amber-400" />
-                Ariadna
-              </span>
-              <span className="text-[10px] font-mono font-bold text-amber-800 dark:text-amber-300">
-                {memberStats.ariadnaCount} movs
-              </span>
-            </div>
-            <p className="font-mono text-base font-extrabold text-foreground">
-              {formatMoney(memberStats.ariadnaExpenses)}
-            </p>
-            <p className="text-[10px] text-muted-foreground">
-              {memberStats.ariadnaRatio}% del gasto total
-            </p>
-          </button>
+        <div className={`grid gap-3 ${memberStats.list.length > 2 ? 'grid-cols-2 sm:grid-cols-3' : 'grid-cols-2'}`}>
+          {memberStats.list.map(({ col, expenses, count, ratio }) => {
+            const isSelected = memberFilter === col.name.toLowerCase();
+            return (
+              <button
+                key={col.name}
+                type="button"
+                onClick={() => setMemberFilter(isSelected ? 'all' : col.name.toLowerCase())}
+                className={`flex flex-col gap-1 p-3 rounded-xl border transition text-left cursor-pointer ${
+                  isSelected
+                    ? `${col.pillActiveClass} ${col.borderClass}`
+                    : `bg-card/60 ${col.borderClass} ${col.rowBgClass} border-border/80 hover:bg-secondary/40`
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="inline-flex items-center gap-1.5 text-xs font-bold text-foreground">
+                    <span className={`h-2 w-2 rounded-full shrink-0 ${col.dotClass}`} />
+                    {col.name}
+                  </span>
+                  <span className="text-[10px] font-mono font-bold text-muted-foreground">
+                    {count} movs
+                  </span>
+                </div>
+                <p className="font-mono text-base font-extrabold text-foreground">
+                  {formatMoney(expenses)}
+                </p>
+                <p className="text-[10px] text-muted-foreground">
+                  {ratio}% del gasto total
+                </p>
+              </button>
+            );
+          })}
         </div>
 
         {/* Visual Ratio Bar */}
         {memberStats.totalExpenses > 0 && (
           <div className="space-y-1 pt-1">
             <div className="h-2.5 w-full rounded-full bg-secondary overflow-hidden flex">
-              <div
-                style={{ width: `${memberStats.danielRatio}%` }}
-                className="bg-emerald-500 transition-all duration-500"
-                title={`Daniel: ${memberStats.danielRatio}%`}
-              />
-              <div
-                style={{ width: `${memberStats.ariadnaRatio}%` }}
-                className="bg-amber-400 transition-all duration-500"
-                title={`Ariadna: ${memberStats.ariadnaRatio}%`}
-              />
+              {memberStats.list.map(({ col, ratio }) => (
+                <div
+                  key={col.name}
+                  style={{ width: `${ratio}%`, backgroundColor: col.colorHex }}
+                  className="transition-all duration-500 h-full"
+                  title={`${col.name}: ${ratio}%`}
+                />
+              ))}
             </div>
           </div>
         )}
       </div>
 
-      {/* Member Filter Selector Pills */}
+      {/* Dynamic Member Filter Selector Pills */}
       <div className="flex items-center gap-2 overflow-x-auto pb-1">
         <span className="text-xs font-bold text-muted-foreground shrink-0 flex items-center gap-1">
           <UserCheck size={14} /> Filtrar por:
@@ -256,28 +237,22 @@ export function TransactionHistory({
         >
           Todos los miembros ({transactions.length})
         </button>
-        <button
-          onClick={() => setMemberFilter('daniel')}
-          className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-xl transition shrink-0 ${
-            memberFilter === 'daniel'
-              ? 'border-2 border-emerald-500 bg-emerald-500/15 text-emerald-800 dark:text-emerald-200 shadow-xs'
-              : 'border border-border/70 bg-card text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/10'
-          }`}
-        >
-          <span className="h-2 w-2 rounded-full bg-emerald-500" />
-          Daniel ({memberStats.danielCount})
-        </button>
-        <button
-          onClick={() => setMemberFilter('ariadna')}
-          className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-xl transition shrink-0 ${
-            memberFilter === 'ariadna'
-              ? 'border-2 border-amber-400 bg-amber-400/25 text-amber-900 dark:text-amber-100 shadow-xs'
-              : 'border border-border/70 bg-card text-amber-800 dark:text-amber-200 hover:bg-amber-400/10'
-          }`}
-        >
-          <span className="h-2 w-2 rounded-full bg-amber-400" />
-          Ariadna ({memberStats.ariadnaCount})
-        </button>
+
+        {memberStats.list.map(({ col, count }) => {
+          const isSelected = memberFilter === col.name.toLowerCase();
+          return (
+            <button
+              key={col.name}
+              onClick={() => setMemberFilter(isSelected ? 'all' : col.name.toLowerCase())}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-xl transition shrink-0 ${
+                isSelected ? col.pillActiveClass : col.pillInactiveClass
+              }`}
+            >
+              <span className={`h-2 w-2 rounded-full shrink-0 ${col.dotClass}`} />
+              {col.name} ({count})
+            </button>
+          );
+        })}
       </div>
 
       {/* Quick Timeframe Filter Pills */}
@@ -411,7 +386,7 @@ export function TransactionHistory({
               const destAcc = accounts.find((a) => a.id === t.destinationAccountId);
               const isIncome = t.type === 'income';
               const isTransfer = t.type === 'transfer';
-              const author = resolveTransactionAuthor(t, currentUser);
+              const author = resolveTransactionAuthor(t, currentUser, collaboratorList);
 
               return (
                 <div
@@ -431,7 +406,7 @@ export function TransactionHistory({
                           {t.note || (isTransfer ? `Trsf. a ${destAcc?.name || 'Cuenta'}` : cat?.name || 'Sin Categoría')}
                         </p>
                         
-                        {/* Member Attribution Badge (🟢 Daniel | 🟡 Ariadna) */}
+                        {/* Member Attribution Badge */}
                         <span
                           className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-extrabold border ${author.badgeClass}`}
                         >

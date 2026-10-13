@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { Account, Category, Transaction, TransactionType, UserProfile } from '@/types/finance';
+import { Collaborator, getHouseholdCollaborators } from '@/lib/household-authors';
 import { ArrowDownLeft, ArrowUpRight, ArrowLeftRight, Check, ChevronDown, Delete, X, Wallet, Building2, CreditCard, PiggyBank, ShoppingBasket, Home, Zap, Car, HeartPulse, GraduationCap, Coffee, Tag, Landmark, Briefcase, TrendingUp, CircleDollarSign, Users, UserCheck } from 'lucide-react';
 
 type FastEntryModalProps = {
@@ -7,7 +8,9 @@ type FastEntryModalProps = {
   onClose: () => void;
   accounts: Account[];
   categories: Category[];
+  transactions?: Transaction[];
   currentUser?: UserProfile | null;
+  collaborators?: Collaborator[];
   onSaveTransaction: (transaction: Omit<Transaction, 'id' | 'createdAt'>) => void;
 };
 
@@ -41,7 +44,7 @@ function evaluateMath(expr: string): number | null {
   return null;
 }
 
-export function FastEntryModal({ isOpen, onClose, accounts, categories, currentUser, onSaveTransaction }: FastEntryModalProps) {
+export function FastEntryModal({ isOpen, onClose, accounts, categories, transactions = [], currentUser, collaborators, onSaveTransaction }: FastEntryModalProps) {
   const [type, setType] = useState<TransactionType>('expense');
   const [amountStr, setAmountStr] = useState('');
   const [selectedAccountId, setSelectedAccountId] = useState(accounts[0]?.id || '');
@@ -52,17 +55,22 @@ export function FastEntryModal({ isOpen, onClose, accounts, categories, currentU
   const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false);
   const [error, setError] = useState('');
 
-  // Default household member author detection
-  const initialAuthor = useMemo<'Daniel' | 'Ariadna'>(() => {
-    const name = (currentUser?.name || '').toLowerCase();
-    const email = (currentUser?.email || '').toLowerCase();
-    if (name.includes('ariadna') || name.includes('arianna') || name.includes('lucero') || email.includes('ariadna')) {
-      return 'Ariadna';
-    }
-    return 'Daniel';
-  }, [currentUser]);
+  // Dynamic household collaborators resolution
+  const collaboratorList = useMemo(() => {
+    if (collaborators && collaborators.length > 0) return collaborators;
+    return getHouseholdCollaborators(transactions, currentUser);
+  }, [collaborators, transactions, currentUser]);
 
-  const [registeredBy, setRegisteredBy] = useState<'Daniel' | 'Ariadna'>(initialAuthor);
+  const initialAuthor = useMemo<string>(() => {
+    if (currentUser?.name && currentUser.name.trim() !== 'Usuario') {
+      const match = collaboratorList.find((c) => c.name.toLowerCase() === currentUser.name.toLowerCase());
+      if (match) return match.name;
+      return currentUser.name;
+    }
+    return collaboratorList[0]?.name || 'Daniel';
+  }, [currentUser, collaboratorList]);
+
+  const [registeredBy, setRegisteredBy] = useState<string>(initialAuthor);
 
   useEffect(() => {
     setRegisteredBy(initialAuthor);
@@ -158,20 +166,23 @@ export function FastEntryModal({ isOpen, onClose, accounts, categories, currentU
       return;
     }
 
+    const matchedCollab = collaboratorList.find((c) => c.name.toLowerCase() === registeredBy.toLowerCase());
+    const authorUserId = matchedCollab?.id || (currentUser?.name && currentUser.name.toLowerCase() === registeredBy.toLowerCase() ? currentUser.id : `usr-${registeredBy.toLowerCase().replace(/[^a-z0-9]/g, '')}`);
+
     onSaveTransaction({
-      accountId: selectedAccountId,
-      destinationAccountId: type === 'transfer' ? destinationAccountId : undefined,
-      categoryId: type === 'transfer' ? 'cat-exp-8' : (currentCategory?.id || 'cat-exp-8'),
-      amount: finalAmount,
-      type,
-      date: new Date(`${date}T12:00:00`).toISOString(),
-      note: note.trim() || undefined,
-      isRecurring: false,
-      isShared: isSharedSplit && type === 'expense',
-      splitRatio: isSharedSplit && type === 'expense' ? splitRatio : undefined,
-      createdByName: registeredBy,
-      createdByUserId: registeredBy === 'Ariadna' ? 'usr-ariadna' : 'usr-daniel',
-    });
+        accountId: selectedAccountId,
+        destinationAccountId: type === 'transfer' ? destinationAccountId : undefined,
+        categoryId: type === 'transfer' ? 'cat-exp-8' : (currentCategory?.id || 'cat-exp-8'),
+        amount: finalAmount,
+        type,
+        date: new Date(`${date}T12:00:00`).toISOString(),
+        note: note.trim() || undefined,
+        isRecurring: false,
+        isShared: isSharedSplit && type === 'expense',
+        splitRatio: isSharedSplit && type === 'expense' ? splitRatio : undefined,
+        createdByName: registeredBy,
+        createdByUserId: authorUserId,
+      });
 
     // Reset & Close
     setAmountStr('');
@@ -230,32 +241,27 @@ export function FastEntryModal({ isOpen, onClose, accounts, categories, currentU
             )}
           </div>
 
-          {/* Member Author Pills (Daniel = Verde, Ariadna = Amarillo) */}
-          <div className="flex items-center gap-1 rounded-xl bg-secondary/60 p-0.5 border border-border/50">
-            <button
-              type="button"
-              onClick={() => setRegisteredBy('Daniel')}
-              className={`flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-bold transition ${
-                registeredBy === 'Daniel'
-                  ? 'border border-emerald-500 bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 shadow-xs'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              <span className="h-2 w-2 rounded-full bg-emerald-500 shrink-0" />
-              <span>Daniel</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setRegisteredBy('Ariadna')}
-              className={`flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-bold transition ${
-                registeredBy === 'Ariadna'
-                  ? 'border border-amber-400 bg-amber-400/25 text-amber-900 dark:text-amber-200 shadow-xs'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              <span className="h-2 w-2 rounded-full bg-amber-400 shrink-0" />
-              <span>Ariadna</span>
-            </button>
+          {/* Member Author Pills (Dynamically mapped with real collaborator names) */}
+          <div className="flex items-center gap-1 rounded-xl bg-secondary/60 p-0.5 border border-border/50 max-w-[210px] overflow-x-auto">
+            {collaboratorList.map((col) => {
+              const isSelected = registeredBy.toLowerCase() === col.name.toLowerCase();
+              return (
+                <button
+                  key={col.name}
+                  type="button"
+                  onClick={() => setRegisteredBy(col.name)}
+                  className={`flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-bold transition shrink-0 ${
+                    isSelected
+                      ? col.pillActiveClass
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                  title={`Registrar a nombre de ${col.name}`}
+                >
+                  <span className={`h-2 w-2 rounded-full shrink-0 ${col.dotClass}`} />
+                  <span className="truncate max-w-[75px]">{col.name}</span>
+                </button>
+              );
+            })}
           </div>
 
           {/* Close Button */}

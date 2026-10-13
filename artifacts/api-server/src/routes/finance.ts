@@ -724,7 +724,11 @@ financeRouter.post("/join-direct", async (req, res) => {
       const existingUsers = await db.select().from(usersTable).where(eq(usersTable.email, emailClean)).limit(1);
       if (existingUsers.length > 0) {
         userRecord = existingUsers[0];
-        await db.update(usersTable).set({ activeWorkspaceId: workspace.id }).where(eq(usersTable.id, userRecord.id));
+        const updateData: any = { activeWorkspaceId: workspace.id };
+        if (user.name && user.name.trim() && user.name !== 'Usuario') {
+          updateData.name = user.name.trim();
+        }
+        await db.update(usersTable).set(updateData).where(eq(usersTable.id, userRecord.id));
       } else {
         const newUserId = user.id || `usr-${Date.now()}`;
         await db.insert(usersTable).values({

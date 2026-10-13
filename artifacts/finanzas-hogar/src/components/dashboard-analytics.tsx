@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { Account, Budget, BudgetRuleConfig, BudgetRuleStrategy, Category, RecurringTransaction, Transaction } from '@/types/finance';
+import { Account, Budget, BudgetRuleConfig, BudgetRuleStrategy, Category, RecurringTransaction, Transaction, UserProfile } from '@/types/finance';
+import { Collaborator, getHouseholdCollaborators, resolveTransactionAuthor } from '@/lib/household-authors';
 import { CategoryIcon } from './fast-entry-modal';
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
 import { ArrowDownLeft, ArrowUpRight, Wallet, TrendingUp, CircleDollarSign, CalendarDays, Share2, Users, Sliders, ShieldCheck, Zap, AlertCircle, ChevronRight, Check, PieChart as PieChartIcon, ArrowRight, Target, Plus, AlertTriangle } from 'lucide-react';
@@ -16,6 +17,8 @@ type DashboardAnalyticsProps = {
   selectedYear: number;
   onMonthChange: (month: number) => void;
   onYearChange: (year: number) => void;
+  currentUser?: UserProfile | null;
+  collaborators?: Collaborator[];
   onOpenShareHousehold?: () => void;
   onNavigateToBudgets?: () => void;
   onNavigateToHistory?: () => void;
@@ -42,6 +45,8 @@ export function DashboardAnalytics({
   selectedYear,
   onMonthChange,
   onYearChange,
+  currentUser,
+  collaborators,
   onOpenShareHousehold,
   onNavigateToBudgets,
   onNavigateToHistory,
@@ -111,41 +116,48 @@ export function DashboardAnalytics({
     return Math.max(0, Math.round(availablePool / daysRemaining));
   }, [monthlyIncome, activeNeedsRatio, activeWantsRatio, monthlyExpenses, pendingRecurringExpenses, daysRemaining]);
 
-  // Household member spending distribution (Daniel Verde vs Ariadna Amarillo)
+  // Dynamic household collaborators resolution
+  const collaboratorList = useMemo(() => {
+    if (collaborators && collaborators.length > 0) return collaborators;
+    return getHouseholdCollaborators(transactions, currentUser);
+  }, [collaborators, transactions, currentUser]);
+
+  // Household member spending distribution
   const householdSplit = useMemo(() => {
-    let danielSpent = 0;
-    let ariadnaSpent = 0;
-    let danielCount = 0;
-    let ariadnaCount = 0;
+    const statsMap = new Map<string, { col: Collaborator; spent: number; count: number }>();
+    collaboratorList.forEach((col) => {
+      statsMap.set(col.name.toLowerCase(), { col, spent: 0, count: 0 });
+    });
+
+    let totalSpent = 0;
 
     monthTransactions.forEach((tx) => {
       if (tx.type !== 'expense') return;
-      const rawName = (tx.createdByName || '').toLowerCase();
-      const rawId = (tx.createdByUserId || '').toLowerCase();
-      const isAriadna = rawName.includes('ariadna') || rawName.includes('arianna') || rawName.includes('lucero') || rawId.includes('ariadna') || rawId.includes('arianna') || rawId.includes('lucero');
-      if (isAriadna) {
-        ariadnaSpent += tx.amount;
-        ariadnaCount += 1;
+      const author = resolveTransactionAuthor(tx, currentUser, collaboratorList);
+      totalSpent += tx.amount;
+      const key = author.name.toLowerCase();
+      const existing = statsMap.get(key);
+      if (existing) {
+        existing.spent += tx.amount;
+        existing.count += 1;
       } else {
-        danielSpent += tx.amount;
-        danielCount += 1;
+        statsMap.set(key, { col: author, spent: tx.amount, count: 1 });
       }
     });
 
-    const total = danielSpent + ariadnaSpent;
-    const danielRatio = total > 0 ? Math.round((danielSpent / total) * 100) : 50;
-    const ariadnaRatio = total > 0 ? 100 - danielRatio : 50;
+    const list = Array.from(statsMap.values()).map(({ col, spent, count }) => {
+      const ratio = totalSpent > 0 ? Math.round((spent / totalSpent) * 100) : (statsMap.size > 0 ? Math.round(100 / statsMap.size) : 0);
+      return { col, spent, count, ratio };
+    });
+
+    const collaboratorNames = list.map((i) => i.col.name).join(' y ');
 
     return {
-      danielSpent,
-      ariadnaSpent,
-      danielCount,
-      ariadnaCount,
-      total,
-      danielRatio,
-      ariadnaRatio,
+      list,
+      totalSpent,
+      collaboratorNames,
     };
-  }, [monthTransactions]);
+  }, [monthTransactions, collaboratorList, currentUser]);
 
   // -------------------------------------------------------------
   // PRESUPUESTO PREVISTO VS GASTADO REAL
@@ -671,7 +683,7 @@ export function DashboardAnalytics({
         )}
       </div>
 
-      {/* Household Member Spending Split (Daniel Verde vs Ariadna Amarillo) */}
+      {/* Household Member Spending Split (Dynamically rendered with real collaborator names) */}
       <div className="rounded-2xl border border-border bg-card p-4 sm:p-5 shadow-xs space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -680,7 +692,9 @@ export function DashboardAnalytics({
             </span>
             <div>
               <h3 className="font-serif text-base font-bold text-foreground">Aportes del Hogar por Miembro</h3>
-              <p className="text-[11px] text-muted-foreground">Gastos de este mes registrados por Daniel y Ariadna</p>
+              <p className="text-[11px] text-muted-foreground">
+                Gastos de este mes registrados por {householdSplit.collaboratorNames || 'los colaboradores'}
+              </p>
             </div>
           </div>
           {onNavigateToHistory && (
@@ -693,66 +707,44 @@ export function DashboardAnalytics({
           )}
         </div>
 
-        <div className="grid grid-cols-2 gap-3 pt-1">
-          {/* Daniel Card (Verde) */}
-          <div
-            onClick={onNavigateToHistory}
-            className="cursor-pointer p-3 rounded-xl border-l-[6px] border-l-emerald-500 border border-emerald-500/30 bg-emerald-500/5 hover:bg-emerald-500/10 transition"
-          >
-            <div className="flex items-center justify-between">
-              <span className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-800 dark:text-emerald-300">
-                <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                Daniel
-              </span>
-              <span className="text-[10px] font-mono font-bold text-emerald-700 dark:text-emerald-400">
-                {householdSplit.danielCount} registros
-              </span>
+        <div className={`grid gap-3 pt-1 ${householdSplit.list.length > 2 ? 'grid-cols-2 sm:grid-cols-3' : 'grid-cols-2'}`}>
+          {householdSplit.list.map(({ col, spent, count, ratio }) => (
+            <div
+              key={col.name}
+              onClick={onNavigateToHistory}
+              className={`cursor-pointer p-3 rounded-xl border ${col.borderClass} ${col.rowBgClass} bg-card/60 transition shadow-xs`}
+            >
+              <div className="flex items-center justify-between">
+                <span className="inline-flex items-center gap-1.5 text-xs font-bold text-foreground">
+                  <span className={`h-2 w-2 rounded-full shrink-0 ${col.dotClass}`} />
+                  {col.name}
+                </span>
+                <span className="text-[10px] font-mono font-bold text-muted-foreground">
+                  {count} registros
+                </span>
+              </div>
+              <p className="mt-1 font-mono text-xl font-extrabold text-foreground">
+                {formatMoney(spent)}
+              </p>
+              <p className="text-[10px] text-muted-foreground">
+                {ratio}% de los gastos del mes
+              </p>
             </div>
-            <p className="mt-1 font-mono text-xl font-extrabold text-foreground">
-              {formatMoney(householdSplit.danielSpent)}
-            </p>
-            <p className="text-[10px] text-muted-foreground">
-              {householdSplit.danielRatio}% de los gastos del mes
-            </p>
-          </div>
-
-          {/* Ariadna Card (Amarillo) */}
-          <div
-            onClick={onNavigateToHistory}
-            className="cursor-pointer p-3 rounded-xl border-l-[6px] border-l-amber-400 border border-amber-400/30 bg-amber-400/5 hover:bg-amber-400/10 transition"
-          >
-            <div className="flex items-center justify-between">
-              <span className="inline-flex items-center gap-1.5 text-xs font-bold text-amber-900 dark:text-amber-200">
-                <span className="h-2 w-2 rounded-full bg-amber-400" />
-                Ariadna
-              </span>
-              <span className="text-[10px] font-mono font-bold text-amber-800 dark:text-amber-300">
-                {householdSplit.ariadnaCount} registros
-              </span>
-            </div>
-            <p className="mt-1 font-mono text-xl font-extrabold text-foreground">
-              {formatMoney(householdSplit.ariadnaSpent)}
-            </p>
-            <p className="text-[10px] text-muted-foreground">
-              {householdSplit.ariadnaRatio}% de los gastos del mes
-            </p>
-          </div>
+          ))}
         </div>
 
-        {/* Visual Dual-tone Proportion Bar */}
-        {householdSplit.total > 0 && (
+        {/* Visual Multi-tone Proportion Bar */}
+        {householdSplit.totalSpent > 0 && (
           <div className="space-y-1 pt-1">
             <div className="h-2 w-full rounded-full bg-secondary overflow-hidden flex">
-              <div
-                style={{ width: `${householdSplit.danielRatio}%` }}
-                className="bg-emerald-500 transition-all duration-500"
-                title={`Daniel: ${householdSplit.danielRatio}%`}
-              />
-              <div
-                style={{ width: `${householdSplit.ariadnaRatio}%` }}
-                className="bg-amber-400 transition-all duration-500"
-                title={`Ariadna: ${householdSplit.ariadnaRatio}%`}
-              />
+              {householdSplit.list.map(({ col, ratio }) => (
+                <div
+                  key={col.name}
+                  style={{ width: `${ratio}%`, backgroundColor: col.colorHex }}
+                  className="transition-all duration-500 h-full"
+                  title={`${col.name}: ${ratio}%`}
+                />
+              ))}
             </div>
           </div>
         )}
