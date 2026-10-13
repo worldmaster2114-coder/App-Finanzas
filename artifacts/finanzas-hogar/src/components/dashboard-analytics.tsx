@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Account, Budget, BudgetRuleConfig, BudgetRuleStrategy, Category, RecurringTransaction, Transaction, UserProfile } from '@/types/finance';
-import { Collaborator, getHouseholdCollaborators, resolveTransactionAuthor } from '@/lib/household-authors';
+import { Collaborator, getHouseholdCollaborators, resolveTransactionAuthor, isSamePerson } from '@/lib/household-authors';
 import { CategoryIcon } from './fast-entry-modal';
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
 import { ArrowDownLeft, ArrowUpRight, Wallet, TrendingUp, CircleDollarSign, CalendarDays, Share2, Users, Sliders, ShieldCheck, Zap, AlertCircle, ChevronRight, Check, PieChart as PieChartIcon, ArrowRight, Target, Plus, AlertTriangle } from 'lucide-react';
@@ -135,13 +135,13 @@ export function DashboardAnalytics({
       if (tx.type !== 'expense') return;
       const author = resolveTransactionAuthor(tx, currentUser, collaboratorList);
       totalSpent += tx.amount;
-      const key = author.name.toLowerCase();
-      const existing = statsMap.get(key);
+      const matchedKey = Array.from(statsMap.keys()).find((k) => isSamePerson(k, author.name)) || author.name.toLowerCase();
+      const existing = statsMap.get(matchedKey);
       if (existing) {
         existing.spent += tx.amount;
         existing.count += 1;
       } else {
-        statsMap.set(key, { col: author, spent: tx.amount, count: 1 });
+        statsMap.set(matchedKey, { col: author, spent: tx.amount, count: 1 });
       }
     });
 

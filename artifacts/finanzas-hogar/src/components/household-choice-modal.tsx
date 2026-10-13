@@ -281,7 +281,7 @@ export function HouseholdChoiceModal({
             <input
               type="text"
               required
-              placeholder="Ej. Lucero, Ariadna o Daniel"
+              placeholder="Ej. Arianna o Daniel"
               value={collaboratorName}
               onChange={(e) => setCollaboratorName(e.target.value)}
               className="h-10 w-full rounded-xl border border-purple-500/40 bg-background px-3 text-xs outline-none focus:border-purple-400 font-bold text-foreground"

@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { Account, Category, Transaction, TransactionType, UserProfile } from '@/types/finance';
-import { Collaborator, getHouseholdCollaborators } from '@/lib/household-authors';
+import { Collaborator, getHouseholdCollaborators, isSamePerson, normalizeCollaboratorName } from '@/lib/household-authors';
 import { ArrowDownLeft, ArrowUpRight, ArrowLeftRight, Check, ChevronDown, Delete, X, Wallet, Building2, CreditCard, PiggyBank, ShoppingBasket, Home, Zap, Car, HeartPulse, GraduationCap, Coffee, Tag, Landmark, Briefcase, TrendingUp, CircleDollarSign, Users, UserCheck } from 'lucide-react';
 
 type FastEntryModalProps = {
@@ -63,9 +63,9 @@ export function FastEntryModal({ isOpen, onClose, accounts, categories, transact
 
   const initialAuthor = useMemo<string>(() => {
     if (currentUser?.name && currentUser.name.trim() !== 'Usuario') {
-      const match = collaboratorList.find((c) => c.name.toLowerCase() === currentUser.name.toLowerCase());
+      const match = collaboratorList.find((c) => isSamePerson(c.name, currentUser.name));
       if (match) return match.name;
-      return currentUser.name;
+      return normalizeCollaboratorName(currentUser.name);
     }
     return collaboratorList[0]?.name || 'Daniel';
   }, [currentUser, collaboratorList]);
@@ -166,8 +166,9 @@ export function FastEntryModal({ isOpen, onClose, accounts, categories, transact
       return;
     }
 
-    const matchedCollab = collaboratorList.find((c) => c.name.toLowerCase() === registeredBy.toLowerCase());
-    const authorUserId = matchedCollab?.id || (currentUser?.name && currentUser.name.toLowerCase() === registeredBy.toLowerCase() ? currentUser.id : `usr-${registeredBy.toLowerCase().replace(/[^a-z0-9]/g, '')}`);
+    const matchedCollab = collaboratorList.find((c) => isSamePerson(c.name, registeredBy));
+    const cleanRegisteredBy = matchedCollab?.name || normalizeCollaboratorName(registeredBy) || 'Colaborador';
+    const authorUserId = matchedCollab?.id || (currentUser?.name && isSamePerson(currentUser.name, registeredBy) ? currentUser.id : `usr-${cleanRegisteredBy.toLowerCase().replace(/[^a-z0-9]/g, '')}`);
 
     onSaveTransaction({
         accountId: selectedAccountId,
@@ -180,7 +181,7 @@ export function FastEntryModal({ isOpen, onClose, accounts, categories, transact
         isRecurring: false,
         isShared: isSharedSplit && type === 'expense',
         splitRatio: isSharedSplit && type === 'expense' ? splitRatio : undefined,
-        createdByName: registeredBy,
+        createdByName: cleanRegisteredBy,
         createdByUserId: authorUserId,
       });
 
@@ -244,7 +245,7 @@ export function FastEntryModal({ isOpen, onClose, accounts, categories, transact
           {/* Member Author Pills (Dynamically mapped with real collaborator names) */}
           <div className="flex items-center gap-1 rounded-xl bg-secondary/60 p-0.5 border border-border/50 max-w-[210px] overflow-x-auto">
             {collaboratorList.map((col) => {
-              const isSelected = registeredBy.toLowerCase() === col.name.toLowerCase();
+              const isSelected = isSamePerson(registeredBy, col.name);
               return (
                 <button
                   key={col.name}

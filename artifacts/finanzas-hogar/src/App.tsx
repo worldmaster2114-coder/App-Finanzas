@@ -19,6 +19,7 @@ import { JoinRequestBanner } from '@/components/join-request-banner';
 import { ShareHouseholdModal } from '@/components/share-household-modal';
 import { HouseholdChoiceModal } from '@/components/household-choice-modal';
 import { UserAvatar } from '@/components/user-avatar';
+import { normalizeCollaboratorName } from '@/lib/household-authors';
 import { loadFinanceData, saveFinanceData, saveToLocalStorage, syncFinanceDataToCloud } from '@/services/storage';
 import { Budget, BudgetRuleConfig, DebtItem, FinanceDataState, RecurringTransaction, SavingsGoal, Transaction, UserProfile, UserPurpose, UserUseCase, Workspace } from '@/types/finance';
 import {
@@ -474,7 +475,7 @@ export function AppShell() {
 
   // Join Shared Workspace Handler
   const handleJoinSharedWorkspace = async (code: string, collaboratorName?: string) => {
-    const effectiveName = (collaboratorName && collaboratorName.trim()) || (dataState.user?.name && dataState.user.name.trim()) || 'Colaborador';
+    const effectiveName = normalizeCollaboratorName(collaboratorName || dataState.user?.name) || 'Colaborador';
     const userToUse: UserProfile = {
       ...(dataState.user || {
         id: `usr-${Date.now()}`,
@@ -528,7 +529,7 @@ export function AppShell() {
 
   // Fast Entry Save Handler
   const handleSaveTransaction = (newTxData: Omit<Transaction, 'id' | 'createdAt'>) => {
-    const creatorName = (newTxData.createdByName || dataState.user?.name || 'Miembro').trim();
+    const creatorName = normalizeCollaboratorName(newTxData.createdByName || dataState.user?.name) || 'Miembro';
     const creatorUserId = newTxData.createdByUserId || dataState.user?.id || `usr-${Date.now()}`;
 
     const newTx: Transaction = {
@@ -1233,7 +1234,7 @@ export function AppShell() {
         onClose={() => setIsHouseholdChoiceOpen(false)}
         user={dataState.user}
         onJoinHousehold={async (code: string, collaboratorName?: string) => {
-          const effectiveName = (collaboratorName && collaboratorName.trim()) || (dataState.user?.name && dataState.user.name.trim()) || 'Colaborador';
+          const effectiveName = normalizeCollaboratorName(collaboratorName || dataState.user?.name) || 'Colaborador';
           const userToUse: UserProfile = {
             ...(dataState.user || {
               id: `usr-${Date.now()}`,

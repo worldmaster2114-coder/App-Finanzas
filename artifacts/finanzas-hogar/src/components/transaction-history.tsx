@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Account, Category, Transaction, UserProfile } from '@/types/finance';
 import { CategoryIcon } from './fast-entry-modal';
 import { exportToCSV, exportToJSON } from '@/services/storage';
-import { Collaborator, getHouseholdCollaborators, resolveTransactionAuthor } from '@/lib/household-authors';
+import { Collaborator, getHouseholdCollaborators, resolveTransactionAuthor, isSamePerson } from '@/lib/household-authors';
 import { Search, Trash2, FileJson, FileSpreadsheet, ChevronDown, Users, UserCheck } from 'lucide-react';
 
 type TransactionHistoryProps = {
@@ -107,7 +107,7 @@ export function TransactionHistory({
         // Dynamic member author filtering
         if (memberFilter !== 'all') {
           const author = resolveTransactionAuthor(t, currentUser, collaboratorList);
-          if (author.name.toLowerCase() !== memberFilter.toLowerCase()) return false;
+          if (!isSamePerson(author.name, memberFilter)) return false;
         }
 
         // Shared expense filtering
@@ -239,11 +239,11 @@ export function TransactionHistory({
         </button>
 
         {memberStats.list.map(({ col, count }) => {
-          const isSelected = memberFilter === col.name.toLowerCase();
+          const isSelected = memberFilter !== 'all' && isSamePerson(memberFilter, col.name);
           return (
             <button
               key={col.name}
-              onClick={() => setMemberFilter(isSelected ? 'all' : col.name.toLowerCase())}
+              onClick={() => setMemberFilter(isSelected ? 'all' : col.name)}
               className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-xl transition shrink-0 ${
                 isSelected ? col.pillActiveClass : col.pillInactiveClass
               }`}
