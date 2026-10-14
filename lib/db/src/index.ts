@@ -172,11 +172,6 @@ export async function initDatabase() {
       ALTER TABLE users ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'user' NOT NULL;
     EXCEPTION WHEN OTHERS THEN NULL;
     END $$;
-
-    -- Ensure Casa de Daniel (Hogar) exists
-    INSERT INTO workspaces (id, name, type, invite_code, owner_id)
-    VALUES ('ws-default', 'Casa de Daniel (Hogar)', 'shared', '503020', 'usr-daniel-master')
-    ON CONFLICT (id) DO NOTHING;
   `;
 
   try {

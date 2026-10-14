@@ -206,12 +206,44 @@ export function AppShell() {
     }
   }, []);
 
-  // Ensure initial local state is uploaded to backend so users and transactions are immediately persisted
+  // Force re-login when the server rotates its session epoch (e.g. after a user reset).
+  // Only the session is cleared locally; transactions/budgets stay and are re-synced.
+  const [sessionChecked, setSessionChecked] = useState(false);
   useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/auth/session-epoch', { cache: 'no-store' });
+        const { epoch } = await res.json();
+        const key = 'finanzas-hogar:session-epoch';
+        if (epoch && localStorage.getItem(key) !== epoch) {
+          localStorage.setItem(key, epoch);
+          setDataState((prev) => {
+            const next = { ...prev, user: null };
+            saveToLocalStorage(next);
+            return next;
+          });
+          setIsAuthenticated(false);
+        }
+      } catch (err) {
+        console.warn('[SESSION] Could not verify session epoch:', err);
+      } finally {
+        if (!cancelled) setSessionChecked(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Upload local state once the session has been validated, so the backend
+  // never re-registers a session that was just invalidated.
+  useEffect(() => {
+    if (!sessionChecked) return;
     if (dataState.user || dataState.transactions.length > 0 || dataState.budgets.length > 0) {
       syncFinanceDataToCloud(dataState, true);
     }
-  }, []);
+  }, [sessionChecked]);
 
   // Poll cloud state periodically and on window focus for instant multi-device sync
   useEffect(() => {
@@ -359,7 +391,8 @@ export function AppShell() {
     const cleanEmail = (googleUserData.email || '').toLowerCase().trim();
     const updatedUser: UserProfile = {
       id: userId,
-      googleId: googleUserData.googleId || googleUserData.id,
+      // Only a real Google login carries a googleId (typed-in emails must not get one)
+      googleId: googleUserData.googleId,
       email: cleanEmail,
       name: googleUserData.name || 'Usuario',
       picture: googleUserData.picture,
@@ -370,6 +403,23 @@ export function AppShell() {
 
     setIsAuthenticated(true);
     setIsOnboardingOpen(false);
+
+    // Let the backend collect the real user data (name, email, photo) at login
+    try {
+      await fetch('/api/auth/google', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: updatedUser.id,
+          googleId: updatedUser.googleId,
+          email: updatedUser.email,
+          name: updatedUser.name,
+          picture: updatedUser.picture,
+        }),
+      });
+    } catch (err) {
+      console.warn('[AUTH] Could not register user in backend:', err);
+    }
 
     let activeInviteCode = inviteCodeFromLogin;
     if (!activeInviteCode && typeof window !== 'undefined') {

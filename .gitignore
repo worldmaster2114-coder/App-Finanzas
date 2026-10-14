@@ -54,3 +54,6 @@ OAuth*.json
 *.env*
 !artifacts/finanzas-hogar/src/
 
+
+# Runtime server storage (never commit user/financial data)
+data/

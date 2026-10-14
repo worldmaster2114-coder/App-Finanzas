@@ -26,27 +26,11 @@ financeRouter.get("/state", async (req, res) => {
   if (!db) {
     const store = readServerStorage();
     const emailKey = email ? email.toLowerCase().trim() : null;
-    let userRecord = emailKey
+    const userRecord = emailKey
       ? store.users[emailKey]
       : userId
       ? Object.values(store.users).find((u: any) => u.id === userId)
       : null;
-
-    if (!userRecord && emailKey) {
-      const isSuper = emailKey === 'worldmaster2114@gmail.com' || emailKey === 'admin@grupowalnut.com';
-      userRecord = {
-        id: userId || `usr-${Date.now()}`,
-        email: emailKey,
-        name: isSuper ? 'Daniel Gerardo' : emailKey.split('@')[0],
-        role: isSuper ? 'super_admin' : 'user',
-        purpose: 'controlar',
-        useCase: 'shared',
-        activeWorkspaceId: 'ws-default',
-        createdAt: new Date().toISOString(),
-      };
-      store.users[emailKey] = userRecord;
-      writeServerStorage(store);
-    }
 
     const allWorkspaces = Object.values(store.workspaces);
     let wsList = allWorkspaces;
@@ -100,27 +84,7 @@ financeRouter.get("/state", async (req, res) => {
     if (email) {
       const cleanEmail = email.toLowerCase().trim();
       const u = await db.select().from(usersTable).where(eq(usersTable.email, cleanEmail)).limit(1);
-      if (u.length > 0) {
-        userRecord = u[0];
-      } else {
-        const isSuper = cleanEmail === 'worldmaster2114@gmail.com' || cleanEmail === 'admin@grupowalnut.com';
-        const newUId = userId || `usr-${Date.now()}`;
-        try {
-          await db.insert(usersTable).values({
-            id: newUId,
-            email: cleanEmail,
-            name: isSuper ? 'Daniel Gerardo' : cleanEmail.split('@')[0],
-            role: isSuper ? 'super_admin' : 'user',
-            purpose: 'controlar',
-            useCase: 'shared',
-            activeWorkspaceId: 'ws-default',
-          });
-          const inserted = await db.select().from(usersTable).where(eq(usersTable.email, cleanEmail)).limit(1);
-          if (inserted.length > 0) userRecord = inserted[0];
-        } catch (e) {
-          console.warn("[FINANCE] Auto-insert user in state query:", e);
-        }
-      }
+      if (u.length > 0) userRecord = u[0];
     } else if (userId) {
       const u = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
       if (u.length > 0) userRecord = u[0];
@@ -300,7 +264,7 @@ financeRouter.post("/sync", async (req, res) => {
     try {
       const store = readServerStorage();
 
-      if (user && (user.id || user.email)) {
+      if (user && user.googleId && (user.id || user.email)) {
         const emailKey = user.email ? user.email.toLowerCase().trim() : user.id;
         store.users[emailKey] = {
           ...(store.users[emailKey] || {}),
@@ -363,7 +327,7 @@ financeRouter.post("/sync", async (req, res) => {
   try {
     // 1. Sync User if present (safely handle email uniqueness)
     let resolvedUserId = user?.id;
-    if (user && (user.id || user.email)) {
+    if (user && user.googleId && (user.id || user.email)) {
       const normalizedEmail = user.email ? user.email.toLowerCase().trim() : null;
       let existingUser = null;
       if (normalizedEmail) {
@@ -708,11 +672,13 @@ financeRouter.post("/join-direct", async (req, res) => {
     }
 
     const emailKey = user?.email ? user.email.toLowerCase().trim() : user?.id || 'guest-user';
-    store.users[emailKey] = {
-      ...(store.users[emailKey] || {}),
-      ...(user || {}),
-      activeWorkspaceId: ws.id,
-    };
+    if (user?.googleId) {
+      store.users[emailKey] = {
+        ...(store.users[emailKey] || {}),
+        ...user,
+        activeWorkspaceId: ws.id,
+      };
+    }
 
     if (!store.workspaceMembers) store.workspaceMembers = [];
     if (!store.workspaceMembers.some((m: any) => m.workspaceId === ws.id && (m.userId === emailKey || m.userId === user?.id))) {
@@ -782,7 +748,7 @@ financeRouter.post("/join-direct", async (req, res) => {
 
     // Ensure user record in DB
     let userRecord = null;
-    if (user?.email) {
+    if (user?.email && user?.googleId) {
       const emailClean = user.email.toLowerCase().trim();
       const existingUsers = await db.select().from(usersTable).where(eq(usersTable.email, emailClean)).limit(1);
       if (existingUsers.length > 0) {

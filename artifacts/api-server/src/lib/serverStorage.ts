@@ -6,7 +6,13 @@ import os from 'os';
 const DATA_DIR = process.env.DATA_DIR || path.join(process.cwd(), 'data');
 const STORAGE_FILE = path.join(DATA_DIR, 'finance_db_fallback.json');
 
+// Bump this value to force every client to log out and to wipe the stored user
+// list once. Users are then re-collected from real Google logins only.
+// Financial data (transactions, budgets, accounts...) is NOT touched.
+export const SESSION_EPOCH = '2026-10-14-reset-1';
+
 export interface ServerStorageSchema {
+  usersEpoch?: string;
   users: Record<string, any>; // email -> user
   workspaces: Record<string, any>; // id -> workspace
   workspaceMembers: any[];
@@ -20,45 +26,11 @@ export interface ServerStorageSchema {
 }
 
 function getEmptyStorage(): ServerStorageSchema {
-  const seedUsers: Record<string, any> = {
-    "worldmaster2114@gmail.com": {
-      id: "usr-daniel-master",
-      email: "worldmaster2114@gmail.com",
-      name: "Daniel Gerardo",
-      role: "super_admin",
-      purpose: "controlar",
-      useCase: "shared",
-      activeWorkspaceId: "ws-default",
-      createdAt: new Date().toISOString(),
-    },
-  };
-
-  const seedWorkspaces: Record<string, any> = {
-    "ws-default": {
-      id: "ws-default",
-      name: "Casa de Daniel (Hogar)",
-      type: "shared",
-      inviteCode: "503020",
-      ownerId: "usr-daniel-master",
-      membersCount: 2,
-      createdAt: new Date().toISOString(),
-    },
-  };
-
-  const seedMembers = [
-    {
-      id: "mem-daniel",
-      workspaceId: "ws-default",
-      userId: "worldmaster2114@gmail.com",
-      role: "owner",
-      joinedAt: new Date().toISOString(),
-    },
-  ];
-
   return {
-    users: seedUsers,
-    workspaces: seedWorkspaces,
-    workspaceMembers: seedMembers,
+    usersEpoch: SESSION_EPOCH,
+    users: {},
+    workspaces: {},
+    workspaceMembers: [],
     accounts: {},
     categories: {},
     transactions: {},
@@ -79,20 +51,13 @@ export function readServerStorage(): ServerStorageSchema {
       const parsed = JSON.parse(content);
       const storage: ServerStorageSchema = { ...getEmptyStorage(), ...parsed };
 
-      // Ensure seed users always exist
-      if (!storage.users || Object.keys(storage.users).length === 0) {
-        storage.users = getEmptyStorage().users;
-      } else {
-        if (!storage.users["worldmaster2114@gmail.com"]) {
-          storage.users["worldmaster2114@gmail.com"] = getEmptyStorage().users["worldmaster2114@gmail.com"];
-        }
-      }
-
-      // Ensure seed workspace exists
-      if (!storage.workspaces || Object.keys(storage.workspaces).length === 0) {
-        storage.workspaces = getEmptyStorage().workspaces;
-      } else if (!storage.workspaces["ws-default"]) {
-        storage.workspaces["ws-default"] = getEmptyStorage().workspaces["ws-default"];
+      // One-time user reset when the epoch changes (keeps financial data)
+      if (parsed.usersEpoch !== SESSION_EPOCH) {
+        storage.users = {};
+        storage.workspaceMembers = [];
+        storage.usersEpoch = SESSION_EPOCH;
+        writeServerStorage(storage);
+        console.log('[SERVER STORAGE] Users reset for new session epoch:', SESSION_EPOCH);
       }
 
       return storage;
