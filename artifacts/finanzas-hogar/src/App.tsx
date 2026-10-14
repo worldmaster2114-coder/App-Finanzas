@@ -946,16 +946,18 @@ export function AppShell() {
               <span>Ayuda & Soporte</span>
             </button>
 
-            <button
-              onClick={() => setIsAdminPanelOpen(true)}
-              className="flex w-full items-center justify-between rounded-xl px-3.5 py-2.5 text-xs font-bold text-amber-500 bg-amber-500/10 border border-amber-500/20 hover:bg-amber-500/20 transition"
-            >
-              <div className="flex items-center gap-2.5">
-                <ShieldAlert size={17} />
-                <span>Panel Super Admin</span>
-              </div>
-              <span className="rounded-md bg-amber-500/30 px-1.5 py-0.2 text-[9px] font-extrabold">ADMIN</span>
-            </button>
+            {isSuperAdmin && (
+              <button
+                onClick={() => setIsAdminPanelOpen(true)}
+                className="flex w-full items-center justify-between rounded-xl px-3.5 py-2.5 text-xs font-bold text-amber-500 bg-amber-500/10 border border-amber-500/20 hover:bg-amber-500/20 transition"
+              >
+                <div className="flex items-center gap-2.5">
+                  <ShieldAlert size={17} />
+                  <span>Panel Super Admin</span>
+                </div>
+                <span className="rounded-md bg-amber-500/30 px-1.5 py-0.2 text-[9px] font-extrabold">ADMIN</span>
+              </button>
+            )}
           </div>
         </div>
 
@@ -1265,7 +1267,7 @@ export function AppShell() {
 
       {/* Super Admin & Support Panel */}
       <AdminSupportPanel
-        isOpen={isAdminPanelOpen}
+        isOpen={isAdminPanelOpen && isSuperAdmin}
         onClose={() => setIsAdminPanelOpen(false)}
         currentUser={dataState.user}
       />

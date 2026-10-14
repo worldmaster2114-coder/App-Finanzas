@@ -100,13 +100,15 @@ export function AdminSupportPanel({ isOpen, onClose, currentUser }: AdminSupport
   }, [isOpen, isUnlocked]);
 
   const loadAllAdminData = async () => {
+    if (!isSuperAdminEmail) return;
     setLoading(true);
     try {
+      const headers = { 'x-admin-email': currentUser?.email || '' };
       const [mRes, uRes, wRes, tRes] = await Promise.all([
-        fetch('/api/admin/metrics').then((r) => r.json()),
-        fetch('/api/admin/users').then((r) => r.json()),
-        fetch('/api/admin/workspaces').then((r) => r.json()),
-        fetch('/api/admin/tickets').then((r) => r.json()),
+        fetch('/api/admin/metrics', { headers }).then((r) => r.json()),
+        fetch('/api/admin/users', { headers }).then((r) => r.json()),
+        fetch('/api/admin/workspaces', { headers }).then((r) => r.json()),
+        fetch('/api/admin/tickets', { headers }).then((r) => r.json()),
       ]);
 
       if (mRes.metrics) setMetrics(mRes.metrics);
@@ -175,7 +177,7 @@ export function AdminSupportPanel({ isOpen, onClose, currentUser }: AdminSupport
     }
   };
 
-  if (!isOpen) return null;
+  if (!isOpen || !isSuperAdminEmail) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-3 sm:p-6 backdrop-blur-md animate-in fade-in-50">

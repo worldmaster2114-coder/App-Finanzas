@@ -32,6 +32,26 @@ adminRouter.post("/verify-pin", (req, res) => {
   });
 });
 
+// Middleware: Ensure ONLY Super Admin emails can access any admin endpoints
+adminRouter.use((req, res, next) => {
+  if (req.path === "/verify-pin") return next();
+
+  const requesterEmail = (
+    (req.headers["x-admin-email"] as string) ||
+    (req.query["email"] as string) ||
+    (req.body?.email as string) ||
+    ""
+  ).toLowerCase().trim();
+
+  if (SUPER_ADMIN_EMAILS.includes(requesterEmail)) {
+    return next();
+  }
+
+  return res.status(403).json({
+    error: "Acceso Denegado: Solo el correo Super Admin (worldmaster2114@gmail.com) tiene permiso para ver estos datos.",
+  });
+});
+
 // GET /api/admin/metrics
 adminRouter.get("/metrics", async (req, res) => {
   try {
