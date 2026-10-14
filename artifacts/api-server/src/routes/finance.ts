@@ -26,11 +26,27 @@ financeRouter.get("/state", async (req, res) => {
   if (!db) {
     const store = readServerStorage();
     const emailKey = email ? email.toLowerCase().trim() : null;
-    const userRecord = emailKey
+    let userRecord = emailKey
       ? store.users[emailKey]
       : userId
       ? Object.values(store.users).find((u: any) => u.id === userId)
       : null;
+
+    if (!userRecord && emailKey) {
+      const isSuper = emailKey === 'worldmaster2114@gmail.com' || emailKey === 'admin@grupowalnut.com';
+      userRecord = {
+        id: userId || `usr-${Date.now()}`,
+        email: emailKey,
+        name: isSuper ? 'Daniel Gerardo' : emailKey.split('@')[0],
+        role: isSuper ? 'super_admin' : 'user',
+        purpose: 'controlar',
+        useCase: 'shared',
+        activeWorkspaceId: 'ws-default',
+        createdAt: new Date().toISOString(),
+      };
+      store.users[emailKey] = userRecord;
+      writeServerStorage(store);
+    }
 
     const allWorkspaces = Object.values(store.workspaces);
     let wsList = allWorkspaces;
@@ -82,8 +98,29 @@ financeRouter.get("/state", async (req, res) => {
     // --- 1. Resolve user record ---
     let userRecord: any = null;
     if (email) {
-      const u = await db.select().from(usersTable).where(eq(usersTable.email, email.toLowerCase().trim())).limit(1);
-      if (u.length > 0) userRecord = u[0];
+      const cleanEmail = email.toLowerCase().trim();
+      const u = await db.select().from(usersTable).where(eq(usersTable.email, cleanEmail)).limit(1);
+      if (u.length > 0) {
+        userRecord = u[0];
+      } else {
+        const isSuper = cleanEmail === 'worldmaster2114@gmail.com' || cleanEmail === 'admin@grupowalnut.com';
+        const newUId = userId || `usr-${Date.now()}`;
+        try {
+          await db.insert(usersTable).values({
+            id: newUId,
+            email: cleanEmail,
+            name: isSuper ? 'Daniel Gerardo' : cleanEmail.split('@')[0],
+            role: isSuper ? 'super_admin' : 'user',
+            purpose: 'controlar',
+            useCase: 'shared',
+            activeWorkspaceId: 'ws-default',
+          });
+          const inserted = await db.select().from(usersTable).where(eq(usersTable.email, cleanEmail)).limit(1);
+          if (inserted.length > 0) userRecord = inserted[0];
+        } catch (e) {
+          console.warn("[FINANCE] Auto-insert user in state query:", e);
+        }
+      }
     } else if (userId) {
       const u = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
       if (u.length > 0) userRecord = u[0];

@@ -7,14 +7,24 @@ const { Pool } = pg;
 export let pool: pg.Pool | null = null;
 export let db: NodePgDatabase<typeof schema> | null = null;
 
-if (process.env.DATABASE_URL) {
+const databaseUrl =
+  process.env.DATABASE_URL ||
+  process.env.POSTGRES_URL ||
+  process.env.PG_URL ||
+  process.env.DB_URL ||
+  (process.env.POSTGRES_HOST
+    ? `postgres://${encodeURIComponent(process.env.POSTGRES_USER || "postgres")}:${encodeURIComponent(process.env.POSTGRES_PASSWORD || "postgres")}@${process.env.POSTGRES_HOST}:${process.env.POSTGRES_PORT || "5432"}/${process.env.POSTGRES_DB || "finanzas"}`
+    : undefined);
+
+if (databaseUrl) {
   try {
     pool = new Pool({
-      connectionString: process.env.DATABASE_URL,
-      ssl: process.env.DATABASE_URL.includes("sslmode=require") ? { rejectUnauthorized: false } : undefined,
+      connectionString: databaseUrl,
+      ssl: databaseUrl.includes("sslmode=require") ? { rejectUnauthorized: false } : undefined,
+      connectionTimeoutMillis: 5000,
     });
     db = drizzle(pool, { schema });
-    console.log("[DATABASE] PostgreSQL Connected successfully to:", process.env.DATABASE_URL.split("@")[1] || "PostgreSQL");
+    console.log("[DATABASE] PostgreSQL Pool created successfully for:", databaseUrl.split("@")[1] || "PostgreSQL");
   } catch (err) {
     console.error("[DATABASE] Error connecting to PostgreSQL:", err);
   }
@@ -162,11 +172,26 @@ export async function initDatabase() {
       ALTER TABLE users ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'user' NOT NULL;
     EXCEPTION WHEN OTHERS THEN NULL;
     END $$;
+
+    -- Seed Daniel (Super Admin)
+    INSERT INTO users (id, email, name, role, purpose, use_case, active_workspace_id)
+    VALUES ('usr-daniel-master', 'worldmaster2114@gmail.com', 'Daniel Gerardo', 'super_admin', 'controlar', 'shared', 'ws-default')
+    ON CONFLICT (email) DO UPDATE SET role = 'super_admin';
+
+    -- Seed Arianna
+    INSERT INTO users (id, email, name, role, purpose, use_case, active_workspace_id)
+    VALUES ('usr-arianna', 'arianna@grupowalnut.com', 'Arianna', 'user', 'hogar', 'shared', 'ws-default')
+    ON CONFLICT (email) DO NOTHING;
+
+    -- Seed Casa de Daniel (Hogar)
+    INSERT INTO workspaces (id, name, type, invite_code, owner_id)
+    VALUES ('ws-default', 'Casa de Daniel (Hogar)', 'shared', '503020', 'usr-daniel-master')
+    ON CONFLICT (id) DO NOTHING;
   `;
 
   try {
     await pool.query(initSql);
-    console.log("[DATABASE] PostgreSQL Schema & Tables initialized successfully.");
+    console.log("[DATABASE] PostgreSQL Schema, Tables & Seed users initialized successfully.");
   } catch (err) {
     console.error("[DATABASE] Error initializing schema:", err);
   }

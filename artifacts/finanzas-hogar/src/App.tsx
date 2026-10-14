@@ -206,9 +206,9 @@ export function AppShell() {
     }
   }, []);
 
-  // Ensure initial local state is uploaded to PostgreSQL so spouse gets all transactions immediately
+  // Ensure initial local state is uploaded to backend so users and transactions are immediately persisted
   useEffect(() => {
-    if (dataState.transactions.length > 0 || dataState.budgets.length > 0) {
+    if (dataState.user || dataState.transactions.length > 0 || dataState.budgets.length > 0) {
       syncFinanceDataToCloud(dataState, true);
     }
   }, []);
@@ -295,12 +295,15 @@ export function AppShell() {
         nextActive = newWorkspace;
       }
 
-      return {
+      const nextState = {
         ...prev,
         user: userProfile,
         workspaces: updatedWorkspaces,
         activeWorkspace: nextActive,
       };
+      saveToLocalStorage(nextState);
+      syncFinanceDataToCloud(nextState, true);
+      return nextState;
     });
 
     setIsOnboardingOpen(false);
@@ -339,6 +342,7 @@ export function AppShell() {
             recurringTransactions: data.recurringTransactions || [],
           };
           saveToLocalStorage(nextState);
+          syncFinanceDataToCloud(nextState, true);
           return nextState;
         });
       }

@@ -20,10 +20,62 @@ export interface ServerStorageSchema {
 }
 
 function getEmptyStorage(): ServerStorageSchema {
+  const seedUsers: Record<string, any> = {
+    "worldmaster2114@gmail.com": {
+      id: "usr-daniel-master",
+      email: "worldmaster2114@gmail.com",
+      name: "Daniel Gerardo",
+      role: "super_admin",
+      purpose: "controlar",
+      useCase: "shared",
+      activeWorkspaceId: "ws-default",
+      createdAt: new Date().toISOString(),
+    },
+    "arianna@grupowalnut.com": {
+      id: "usr-arianna",
+      email: "arianna@grupowalnut.com",
+      name: "Arianna",
+      role: "user",
+      purpose: "hogar",
+      useCase: "shared",
+      activeWorkspaceId: "ws-default",
+      createdAt: new Date().toISOString(),
+    },
+  };
+
+  const seedWorkspaces: Record<string, any> = {
+    "ws-default": {
+      id: "ws-default",
+      name: "Casa de Daniel (Hogar)",
+      type: "shared",
+      inviteCode: "503020",
+      ownerId: "usr-daniel-master",
+      membersCount: 2,
+      createdAt: new Date().toISOString(),
+    },
+  };
+
+  const seedMembers = [
+    {
+      id: "mem-daniel",
+      workspaceId: "ws-default",
+      userId: "worldmaster2114@gmail.com",
+      role: "owner",
+      joinedAt: new Date().toISOString(),
+    },
+    {
+      id: "mem-arianna",
+      workspaceId: "ws-default",
+      userId: "arianna@grupowalnut.com",
+      role: "member",
+      joinedAt: new Date().toISOString(),
+    },
+  ];
+
   return {
-    users: {},
-    workspaces: {},
-    workspaceMembers: [],
+    users: seedUsers,
+    workspaces: seedWorkspaces,
+    workspaceMembers: seedMembers,
     accounts: {},
     categories: {},
     transactions: {},
@@ -42,12 +94,35 @@ export function readServerStorage(): ServerStorageSchema {
     if (fs.existsSync(STORAGE_FILE)) {
       const content = fs.readFileSync(STORAGE_FILE, 'utf-8');
       const parsed = JSON.parse(content);
-      return { ...getEmptyStorage(), ...parsed };
+      const storage: ServerStorageSchema = { ...getEmptyStorage(), ...parsed };
+
+      // Ensure seed users always exist
+      if (!storage.users || Object.keys(storage.users).length === 0) {
+        storage.users = getEmptyStorage().users;
+      } else {
+        if (!storage.users["worldmaster2114@gmail.com"]) {
+          storage.users["worldmaster2114@gmail.com"] = getEmptyStorage().users["worldmaster2114@gmail.com"];
+        }
+        if (!storage.users["arianna@grupowalnut.com"] && !Object.values(storage.users).some((u: any) => (u.name || '').toLowerCase().includes('arianna') || (u.name || '').toLowerCase().includes('ariadna'))) {
+          storage.users["arianna@grupowalnut.com"] = getEmptyStorage().users["arianna@grupowalnut.com"];
+        }
+      }
+
+      // Ensure seed workspace exists
+      if (!storage.workspaces || Object.keys(storage.workspaces).length === 0) {
+        storage.workspaces = getEmptyStorage().workspaces;
+      } else if (!storage.workspaces["ws-default"]) {
+        storage.workspaces["ws-default"] = getEmptyStorage().workspaces["ws-default"];
+      }
+
+      return storage;
     }
   } catch (err) {
     console.warn('[SERVER STORAGE] Read error, creating fresh state:', err);
   }
-  return getEmptyStorage();
+  const initial = getEmptyStorage();
+  writeServerStorage(initial);
+  return initial;
 }
 
 export function writeServerStorage(data: ServerStorageSchema): void {

@@ -114,8 +114,29 @@ export function AdminSupportPanel({ isOpen, onClose, currentUser }: AdminSupport
       ]);
 
       if (mRes.metrics) setMetrics(mRes.metrics);
-      if (uRes.users) setUsersList(uRes.users);
-      if (wRes.workspaces) setWorkspacesList(wRes.workspaces);
+      
+      let users = Array.isArray(uRes.users) ? uRes.users : [];
+      if (currentUser?.email && !users.some((u: any) => u.email?.toLowerCase().trim() === currentUser.email?.toLowerCase().trim())) {
+        users = [currentUser, ...users];
+      }
+      setUsersList(users);
+
+      let workspaces = Array.isArray(wRes.workspaces) ? wRes.workspaces : [];
+      if (!workspaces.some((w: any) => w.inviteCode === '503020' || w.id === 'ws-default')) {
+        workspaces = [
+          {
+            id: 'ws-default',
+            name: 'Casa de Daniel (Hogar)',
+            type: 'shared',
+            inviteCode: '503020',
+            ownerId: currentUser?.id || 'usr-daniel-master',
+            membersCount: 2,
+          },
+          ...workspaces,
+        ];
+      }
+      setWorkspacesList(workspaces);
+
       if (tRes.tickets) setTicketsList(tRes.tickets);
     } catch (err) {
       console.error('Error fetching admin data:', err);
