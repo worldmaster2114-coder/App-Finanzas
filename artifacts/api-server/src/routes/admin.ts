@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db, usersTable, workspacesTable, accountsTable, transactionsTable, budgetsTable, savingsGoalsTable, supportTicketsTable } from "@workspace/db";
+import { db, usersTable, workspacesTable, workspaceMembersTable, accountsTable, transactionsTable, budgetsTable, savingsGoalsTable, supportTicketsTable } from "@workspace/db";
 import { eq, desc, sql } from "drizzle-orm";
 import { readServerStorage, rotateSessionEpoch } from "../lib/serverStorage";
 
@@ -138,7 +138,15 @@ adminRouter.get("/users", async (req, res) => {
       users = Object.values(store.users || {});
     }
 
-    return res.json({ users });
+    // Enrich each user with their assigned household / workspace
+    const enrichedUsers = users.map((u: any) => ({
+      ...u,
+      workspaceName: "Casa de Daniel (Hogar)",
+      workspaceInviteCode: "503020",
+      useCase: "shared",
+    }));
+
+    return res.json({ users: enrichedUsers });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }
@@ -147,31 +155,112 @@ adminRouter.get("/users", async (req, res) => {
 // GET /api/admin/workspaces
 adminRouter.get("/workspaces", async (req, res) => {
   try {
-    let workspaces: any[] = [];
+    let rawWorkspaces: any[] = [];
+    let allUsers: any[] = [];
+    let allAccounts: any[] = [];
+    let allTransactions: any[] = [];
+    let allMembers: any[] = [];
+
     if (db) {
       try {
-        workspaces = await db.select().from(workspacesTable).orderBy(desc(workspacesTable.createdAt));
+        [rawWorkspaces, allUsers, allAccounts, allTransactions, allMembers] = await Promise.all([
+          db.select().from(workspacesTable).orderBy(desc(workspacesTable.createdAt)),
+          db.select().from(usersTable),
+          db.select().from(accountsTable),
+          db.select().from(transactionsTable),
+          db.select().from(workspaceMembersTable),
+        ]);
       } catch (dbErr) {
         console.warn("[ADMIN] DB select workspaces failed:", dbErr);
       }
     }
 
-    if (workspaces.length === 0) {
+    if (rawWorkspaces.length === 0) {
       const store = readServerStorage();
-      workspaces = Object.values(store.workspaces || {});
+      rawWorkspaces = Object.values(store.workspaces || {});
+      allUsers = Object.values(store.users || {});
+      allAccounts = Object.values(store.accounts || {});
+      allTransactions = Object.values(store.transactions || {});
+      allMembers = store.workspaceMembers || [];
     }
 
-    if (!workspaces.some((w: any) => w.id === 'ws-default' || (w.inviteCode || '') === '503020')) {
-      workspaces.unshift({
+    if (!rawWorkspaces.some((w: any) => w.id === "ws-default" || (w.inviteCode || "") === "503020")) {
+      rawWorkspaces.unshift({
         id: "ws-default",
         name: "Casa de Daniel (Hogar)",
         type: "shared",
         inviteCode: "503020",
-        ownerId: "usr-daniel-master",
-        membersCount: 2,
+        ownerId: "google-117683497210260321279",
         createdAt: new Date().toISOString(),
       });
     }
+
+    // Default financial accounts for the household
+    const defaultAccounts = [
+      { id: "acc-1", name: "Efectivo Billetera", type: "cash", balance: 0, currency: "DOP", icon: "Wallet", color: "#10b981" },
+      { id: "acc-2", name: "Cuenta de Banco", type: "bank", balance: 0, currency: "DOP", icon: "Building2", color: "#3b82f6" },
+      { id: "acc-3", name: "Tarjeta de Crédito", type: "credit_card", balance: 0, currency: "DOP", icon: "CreditCard", color: "#ef4444" },
+      { id: "acc-4", name: "Bóveda de Ahorros", type: "savings", balance: 0, currency: "DOP", icon: "PiggyBank", color: "#8b5cf6" },
+    ];
+
+    const workspaces = rawWorkspaces.map((w: any) => {
+      // 1. Resolve Creator / Owner (Daniel)
+      const ownerUser = allUsers.find(
+        (u: any) =>
+          u.id === w.ownerId ||
+          u.googleId === w.ownerId ||
+          u.email === w.ownerId ||
+          (u.email && u.email.toLowerCase() === "worldmaster2114@gmail.com")
+      );
+
+      // 2. Resolve Members (Cuentas de usuario vinculadas al hogar)
+      let membersList: any[] = [];
+      if (w.id === "ws-default" || w.inviteCode === "503020") {
+        membersList = allUsers.map((u: any) => {
+          const isOwner = (u.email && u.email.toLowerCase() === "worldmaster2114@gmail.com") || u.id === w.ownerId;
+          return {
+            id: u.id,
+            name: u.name,
+            email: u.email,
+            picture: u.picture,
+            role: isOwner ? "Anfitrión / Creador" : "Miembro del Hogar",
+          };
+        });
+      } else {
+        const memberIds = new Set(allMembers.filter((m: any) => m.workspaceId === w.id).map((m: any) => m.userId));
+        membersList = allUsers
+          .filter((u: any) => memberIds.has(u.id) || u.id === w.ownerId)
+          .map((u: any) => ({
+            id: u.id,
+            name: u.name,
+            email: u.email,
+            picture: u.picture,
+            role: u.id === w.ownerId ? "Anfitrión" : "Miembro",
+          }));
+      }
+
+      // 3. Resolve Financial Accounts (Cuentas Financieras: Banco, Efectivo, Tarjeta, Ahorros)
+      const wsAccounts = allAccounts.filter(
+        (a: any) => a.workspaceId === w.id || (!a.workspaceId && (w.id === "ws-default" || w.inviteCode === "503020"))
+      );
+      const accountsList = wsAccounts.length > 0 ? wsAccounts : defaultAccounts;
+
+      // 4. Resolve Transactions
+      const wsTransactions = allTransactions.filter(
+        (t: any) => t.workspaceId === w.id || (!t.workspaceId && (w.id === "ws-default" || w.inviteCode === "503020"))
+      );
+
+      return {
+        ...w,
+        ownerName: ownerUser?.name || "Daniel Gerardo Valdez Perez",
+        ownerEmail: ownerUser?.email || "worldmaster2114@gmail.com",
+        ownerPicture: ownerUser?.picture,
+        members: membersList,
+        membersCount: membersList.length,
+        accounts: accountsList,
+        transactionsCount: wsTransactions.length,
+      };
+    });
 
     return res.json({ workspaces });
   } catch (err: any) {

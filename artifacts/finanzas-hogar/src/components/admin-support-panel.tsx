@@ -25,6 +25,13 @@ import {
   Sparkles,
   Key,
   LogOut,
+  Home,
+  Wallet,
+  CreditCard,
+  Building2,
+  PiggyBank,
+  UserCheck,
+  Hash,
 } from 'lucide-react';
 
 type AdminSupportPanelProps = {
@@ -516,15 +523,14 @@ export function AdminSupportPanel({ isOpen, onClose, currentUser }: AdminSupport
                             <tr>
                               <th className="p-3.5">Usuario</th>
                               <th className="p-3.5">Email</th>
-                              <th className="p-3.5">Propósito</th>
-                              <th className="p-3.5">Modo</th>
-                              <th className="p-3.5">Rol</th>
+                              <th className="p-3.5">Hogar Asignado</th>
+                              <th className="p-3.5">Rol de Acceso</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-border">
                             {usersList.length === 0 ? (
                               <tr>
-                                <td colSpan={5} className="p-6 text-center text-muted-foreground">
+                                <td colSpan={4} className="p-6 text-center text-muted-foreground">
                                   No hay usuarios en la base de datos aún. Se registrarán con Google Sign-In.
                                 </td>
                               </tr>
@@ -541,13 +547,18 @@ export function AdminSupportPanel({ isOpen, onClose, currentUser }: AdminSupport
                                     <span>{u.name}</span>
                                   </td>
                                   <td className="p-3.5 text-muted-foreground font-mono">{u.email}</td>
-                                  <td className="p-3.5 capitalize">{u.purpose || 'Control'}</td>
-                                  <td className="p-3.5 capitalize">{u.useCase === 'shared' ? 'Hogar' : 'Personal'}</td>
+                                  <td className="p-3.5">
+                                    <span className="inline-flex items-center gap-1.5 rounded-lg bg-primary/10 border border-primary/20 px-2.5 py-1 text-[11px] font-bold text-primary">
+                                      <Home size={12} />
+                                      <span>{u.workspaceName || 'Casa de Daniel (Hogar)'}</span>
+                                      <span className="text-[10px] font-mono opacity-70">({u.workspaceInviteCode || '503020'})</span>
+                                    </span>
+                                  </td>
                                   <td className="p-3.5">
                                     {u.email === 'worldmaster2114@gmail.com' ? (
-                                      <span className="rounded-md bg-amber-500/20 text-amber-500 px-2 py-0.5 text-[9px] font-extrabold">SUPER ADMIN</span>
+                                      <span className="rounded-md bg-amber-500/20 text-amber-500 border border-amber-500/30 px-2 py-0.5 text-[9px] font-extrabold uppercase">SUPER ADMIN</span>
                                     ) : (
-                                      <span className="rounded-md bg-secondary text-muted-foreground px-2 py-0.5 text-[9px] font-bold">USUARIO</span>
+                                      <span className="rounded-md bg-secondary text-muted-foreground px-2 py-0.5 text-[9px] font-bold uppercase">USUARIO</span>
                                     )}
                                   </td>
                                 </tr>
@@ -561,38 +572,141 @@ export function AdminSupportPanel({ isOpen, onClose, currentUser }: AdminSupport
 
                   <div>
                     <h4 className="font-bold text-sm text-foreground mb-3 flex items-center gap-2">
-                      <Users size={16} /> Hogares & Espacios Compartidos ({workspacesList.length})
+                      <Home size={16} className="text-primary" /> Hogares & Espacios Compartidos ({workspacesList.length})
                     </h4>
-                    <div className="rounded-2xl border border-border overflow-hidden bg-card">
-                      <table className="w-full text-left text-xs">
-                        <thead className="bg-secondary/60 text-muted-foreground font-bold border-b border-border">
-                          <tr>
-                            <th className="p-3.5">Nombre del Hogar</th>
-                            <th className="p-3.5">Tipo</th>
-                            <th className="p-3.5">Código de Invitación</th>
-                            <th className="p-3.5">Creador ID</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-border">
-                          {workspacesList.length === 0 ? (
-                            <tr>
-                              <td colSpan={4} className="p-6 text-center text-muted-foreground">
-                                No hay hogares creados aún.
-                              </td>
-                            </tr>
-                          ) : (
-                            workspacesList.map((w) => (
-                              <tr key={w.id} className="hover:bg-secondary/30">
-                                <td className="p-3.5 font-bold">{w.name}</td>
-                                <td className="p-3.5 capitalize">{w.type}</td>
-                                <td className="p-3.5 font-mono font-bold text-primary">{w.inviteCode}</td>
-                                <td className="p-3.5 font-mono text-[10px] text-muted-foreground">{w.ownerId}</td>
-                              </tr>
-                            ))
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
+
+                    {workspacesList.length === 0 ? (
+                      <div className="rounded-2xl border border-border bg-card p-6 text-center text-muted-foreground text-xs">
+                        No hay hogares creados aún.
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        {workspacesList.map((w) => (
+                          <div key={w.id} className="rounded-2xl border border-border bg-card p-5 space-y-4 shadow-xs">
+                            {/* Header: Workspace title, code, creator, and transaction count */}
+                            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/60 pb-3.5">
+                              <div className="flex items-center gap-3">
+                                <span className="grid h-10 w-10 place-items-center rounded-2xl bg-primary/10 text-primary border border-primary/20">
+                                  <Home size={20} />
+                                </span>
+                                <div>
+                                  <div className="flex items-center gap-2">
+                                    <h5 className="font-serif text-base font-bold text-foreground">{w.name}</h5>
+                                    <span className="rounded-md bg-primary/15 text-primary border border-primary/30 px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-wide">
+                                      {w.type === 'shared' ? 'Hogar Compartido' : 'Personal'}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center gap-3 text-xs text-muted-foreground mt-0.5">
+                                    <span>
+                                      Código de Unión: <strong className="font-mono text-primary font-bold text-xs">{w.inviteCode}</strong>
+                                    </span>
+                                    <span>•</span>
+                                    <span>{w.transactionsCount || 0} movimientos registrados</span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Owner Profile */}
+                              <div className="flex items-center gap-2.5 bg-secondary/50 px-3.5 py-2 rounded-xl border border-border">
+                                <span className="text-[10px] uppercase font-bold text-muted-foreground">Anfitrión:</span>
+                                <UserAvatar
+                                  picture={w.ownerPicture}
+                                  name={w.ownerName}
+                                  size="xs"
+                                  isSuperAdmin={w.ownerEmail === 'worldmaster2114@gmail.com'}
+                                />
+                                <div className="text-left">
+                                  <p className="text-xs font-bold leading-tight text-foreground">{w.ownerName || 'Daniel Gerardo Valdez Perez'}</p>
+                                  <p className="text-[10px] font-mono text-muted-foreground">{w.ownerEmail || 'worldmaster2114@gmail.com'}</p>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* 2 Grids: Linked Users and Financial Accounts */}
+                            <div className="grid md:grid-cols-2 gap-4">
+                              {/* 1. Cuentas de Usuario Vinculadas (Miembros) */}
+                              <div className="rounded-xl border border-border/80 bg-secondary/20 p-4 space-y-3">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                                    <Users size={14} className="text-primary" /> Cuentas de Usuario en este Hogar ({w.members?.length || 0})
+                                  </span>
+                                  <span className="text-[10px] text-muted-foreground">Miembros activos</span>
+                                </div>
+
+                                <div className="space-y-2">
+                                  {(!w.members || w.members.length === 0) ? (
+                                    <p className="text-xs text-muted-foreground p-2">Sin miembros asignados.</p>
+                                  ) : (
+                                    w.members.map((m: any, mIdx: number) => (
+                                      <div key={mIdx} className="flex items-center justify-between bg-card p-2.5 rounded-xl border border-border/70 hover:border-border transition">
+                                        <div className="flex items-center gap-2.5 min-w-0">
+                                          <UserAvatar
+                                            picture={m.picture}
+                                            name={m.name}
+                                            size="xs"
+                                            isSuperAdmin={m.email === 'worldmaster2114@gmail.com'}
+                                          />
+                                          <div className="min-w-0">
+                                            <p className="text-xs font-bold truncate text-foreground">{m.name}</p>
+                                            <p className="text-[10px] font-mono text-muted-foreground truncate">{m.email}</p>
+                                          </div>
+                                        </div>
+                                        <span className={`text-[9px] font-bold px-2 py-0.5 rounded-md shrink-0 ${
+                                          m.role && m.role.includes('Anfitrión') ? 'bg-amber-500/15 text-amber-500 border border-amber-500/30' : 'bg-secondary text-muted-foreground'
+                                        }`}>
+                                          {m.role || 'Miembro'}
+                                        </span>
+                                      </div>
+                                    ))
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* 2. Cuentas Financieras Vinculadas (Banco, Billetera, etc.) */}
+                              <div className="rounded-xl border border-border/80 bg-secondary/20 p-4 space-y-3">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                                    <Wallet size={14} className="text-emerald-500" /> Cuentas Financieras del Hogar ({w.accounts?.length || 0})
+                                  </span>
+                                  <span className="text-[10px] text-muted-foreground">Billeteras & Bancos</span>
+                                </div>
+
+                                <div className="space-y-2">
+                                  {(!w.accounts || w.accounts.length === 0) ? (
+                                    <p className="text-xs text-muted-foreground p-2">Sin cuentas financieras registradas.</p>
+                                  ) : (
+                                    w.accounts.map((acc: any, accIdx: number) => (
+                                      <div key={accIdx} className="flex items-center justify-between bg-card p-2.5 rounded-xl border border-border/70 hover:border-border transition">
+                                        <div className="flex items-center gap-2.5 min-w-0">
+                                          <span
+                                            className="grid h-8 w-8 place-items-center rounded-lg text-white text-xs font-bold shrink-0 shadow-xs"
+                                            style={{ backgroundColor: acc.color || '#3b82f6' }}
+                                          >
+                                            {acc.type === 'cash' ? '💵' : acc.type === 'bank' ? '🏦' : acc.type === 'credit_card' ? '💳' : '🐖'}
+                                          </span>
+                                          <div className="min-w-0">
+                                            <p className="text-xs font-bold text-foreground truncate">{acc.name}</p>
+                                            <p className="text-[10px] text-muted-foreground capitalize">
+                                              {acc.type === 'cash' ? 'Efectivo' : acc.type === 'bank' ? 'Cuenta Bancaria' : acc.type === 'credit_card' ? 'Tarjeta de Crédito' : 'Bóveda de Ahorro'}
+                                            </p>
+                                          </div>
+                                        </div>
+                                        <div className="text-right shrink-0">
+                                          <p className="text-xs font-mono font-bold text-foreground">
+                                            {acc.currency || 'DOP'} {Number(acc.balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                          </p>
+                                          <span className="text-[9px] text-muted-foreground font-semibold">Saldo</span>
+                                        </div>
+                                      </div>
+                                    ))
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
