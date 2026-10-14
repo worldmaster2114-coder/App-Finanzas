@@ -93,6 +93,32 @@ financeRouter.get("/state", async (req, res) => {
     let workspaces: any[] = [];
     const wsMap = new Map<string, any>();
 
+    const isMasterDaniel = Boolean(
+      (email && email.toLowerCase().includes('worldmaster2114')) ||
+      (userRecord?.email && userRecord.email.toLowerCase().includes('worldmaster2114'))
+    );
+
+    if (isMasterDaniel) {
+      const defaultWs = await db.select().from(workspacesTable).where(eq(workspacesTable.id, "ws-default")).limit(1);
+      if (defaultWs.length > 0) {
+        wsMap.set("ws-default", defaultWs[0]);
+      } else {
+        await db.insert(workspacesTable).values({
+          id: "ws-default",
+          name: "Casa de Daniel (Hogar)",
+          type: "shared",
+          inviteCode: "503020",
+          ownerId: userRecord?.id || "usr-daniel",
+        });
+        const created = await db.select().from(workspacesTable).where(eq(workspacesTable.id, "ws-default")).limit(1);
+        if (created.length > 0) wsMap.set("ws-default", created[0]);
+      }
+      if (userRecord && userRecord.activeWorkspaceId !== "ws-default") {
+        await db.update(usersTable).set({ activeWorkspaceId: "ws-default" }).where(eq(usersTable.id, userRecord.id));
+        userRecord.activeWorkspaceId = "ws-default";
+      }
+    }
+
     if (userRecord) {
       const owned = await db
         .select()

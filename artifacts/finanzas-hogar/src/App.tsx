@@ -352,10 +352,11 @@ export function AppShell() {
   // Google / Email Login Handler
   const handleGoogleLogin = async (googleUserData: Partial<UserProfile>, inviteCodeFromLogin?: string) => {
     const userId = googleUserData.id || `usr-${Date.now()}`;
+    const cleanEmail = (googleUserData.email || '').toLowerCase().trim();
     const updatedUser: UserProfile = {
       id: userId,
       googleId: googleUserData.googleId || googleUserData.id,
-      email: googleUserData.email || '',
+      email: cleanEmail,
       name: googleUserData.name || 'Usuario',
       picture: googleUserData.picture,
       purpose: dataState.user?.purpose || 'controlar',
@@ -369,22 +370,80 @@ export function AppShell() {
     let activeInviteCode = inviteCodeFromLogin;
     if (!activeInviteCode && typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
-      activeInviteCode = params.get('join') || undefined;
+      activeInviteCode = params.get('join') || params.get('code') || undefined;
     }
 
     if (activeInviteCode) {
       await executeJoinDirect(activeInviteCode, updatedUser);
-    } else {
-      setDataState((prev) => {
+      setIsHouseholdChoiceOpen(false);
+      return;
+    }
+
+    // Direct Login for Returning / Existing Account: Immediately hydrate state from PostgreSQL
+    setIsSyncing(true);
+    try {
+      const emailParam = encodeURIComponent(cleanEmail);
+      const userParam = encodeURIComponent(updatedUser.id);
+      const res = await fetch(`/api/finance/state?userId=${userParam}&email=${emailParam}&inviteCode=503020`);
+      const data = await res.json();
+
+      if (data && data.status === 'synced') {
+        const remoteWorkspaces: Workspace[] = Array.isArray(data.workspaces) && data.workspaces.length > 0
+          ? data.workspaces
+          : [];
+
+        const isOwner = cleanEmail.includes('worldmaster2114') ||
+          (updatedUser.name && updatedUser.name.toLowerCase().includes('daniel'));
+
+        const targetWorkspace = remoteWorkspaces.find((w) => w.id === data.activeWorkspaceId) ||
+          remoteWorkspaces.find((w) => w.type === 'shared' || w.id === 'ws-default') ||
+          remoteWorkspaces[0] || {
+            id: 'ws-default',
+            name: 'Casa de Daniel (Hogar)',
+            type: 'shared',
+            inviteCode: '503020',
+            ownerId: updatedUser.id,
+            membersCount: 2,
+          };
+
         const nextState: FinanceDataState = {
-          ...prev,
-          user: updatedUser,
+          ...dataState,
+          user: data.user ? { ...updatedUser, ...data.user } : updatedUser,
+          workspaces: remoteWorkspaces.length > 0 ? remoteWorkspaces : [targetWorkspace],
+          activeWorkspace: targetWorkspace,
+          accounts: data.accounts && data.accounts.length > 0 ? data.accounts : dataState.accounts,
+          categories: data.categories && data.categories.length > 0 ? data.categories : dataState.categories,
+          transactions: data.transactions || [],
+          budgets: data.budgets || [],
+          savingsGoals: data.savingsGoals || [],
+          recurringTransactions: data.recurringTransactions || [],
         };
+
+        setDataState(nextState);
+        saveToLocalStorage(nextState);
         syncFinanceDataToCloud(nextState, true);
-        return nextState;
-      });
-      // Show choice modal immediately after login so user can pick between Casa de Daniel and Personal
-      setIsHouseholdChoiceOpen(true);
+
+        // Never show choice modal to Daniel or users with existing households or data!
+        const hasExistingData = isOwner ||
+          remoteWorkspaces.some((w) => w.type === 'shared' || w.id === 'ws-default') ||
+          (data.transactions && data.transactions.length > 0);
+
+        if (hasExistingData) {
+          setIsHouseholdChoiceOpen(false);
+        } else {
+          setIsHouseholdChoiceOpen(true);
+        }
+      } else {
+        const fallbackState = { ...dataState, user: updatedUser };
+        setDataState(fallbackState);
+        saveToLocalStorage(fallbackState);
+        setIsHouseholdChoiceOpen(false);
+      }
+    } catch (err) {
+      console.warn('Error hydrating on login:', err);
+      setIsHouseholdChoiceOpen(false);
+    } finally {
+      setIsSyncing(false);
     }
   };
 
@@ -1230,7 +1289,9 @@ export function AppShell() {
 
       {/* Post-Login / Direct Household Choice Modal (Casa de Daniel vs Personal) */}
       <HouseholdChoiceModal
-        isOpen={isHouseholdChoiceOpen}
+        isOpen={isHouseholdChoiceOpen && !Boolean(
+          dataState.user?.email && ['worldmaster2114@gmail.com', 'admin@grupowalnut.com'].includes(dataState.user.email.toLowerCase().trim())
+        )}
         onClose={() => setIsHouseholdChoiceOpen(false)}
         user={dataState.user}
         onJoinHousehold={async (code: string, collaboratorName?: string) => {

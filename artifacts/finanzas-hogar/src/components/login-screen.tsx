@@ -54,6 +54,7 @@ export function LoginScreen({ onGoogleLogin, onEnterAsGuest }: LoginScreenProps)
       try {
         win.google.accounts.id.initialize({
           client_id: clientId,
+          auto_select: true,
           callback: (response: { credential: string }) => {
             const payload = parseJwt(response.credential);
             if (payload && payload.email) {
