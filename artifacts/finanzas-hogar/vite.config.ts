@@ -17,6 +17,10 @@ const basePath = process.env.BASE_PATH || '/';
 
 export default defineConfig({
   base: basePath,
+  define: {
+    'process.env': {},
+    'process.version': JSON.stringify('v22.0.0'),
+  },
   plugins: [
     react(),
     tailwindcss(),

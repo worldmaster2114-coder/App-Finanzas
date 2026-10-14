@@ -372,7 +372,7 @@ export function AdminSupportPanel({ isOpen, onClose, currentUser }: AdminSupport
                       <div className="space-y-2 text-xs">
                         <div className="flex justify-between py-1 border-b border-border/50">
                           <span className="text-muted-foreground">Versión Node.js:</span>
-                          <span className="font-mono font-bold">{metrics?.server?.nodeVersion || process.version || 'v22.x'}</span>
+                          <span className="font-mono font-bold">{metrics?.server?.nodeVersion || 'v22.x'}</span>
                         </div>
                         <div className="flex justify-between py-1 border-b border-border/50">
                           <span className="text-muted-foreground">Tiempo de Actividad (Uptime):</span>
