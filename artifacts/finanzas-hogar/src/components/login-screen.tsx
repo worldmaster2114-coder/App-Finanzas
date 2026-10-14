@@ -52,9 +52,13 @@ export function LoginScreen({ onGoogleLogin, onEnterAsGuest }: LoginScreenProps)
     const win = window as any;
     if (win.google?.accounts?.id && clientId) {
       try {
+        try {
+          win.google.accounts.id.disableAutoSelect();
+        } catch (e) {}
+
         win.google.accounts.id.initialize({
           client_id: clientId,
-          auto_select: true,
+          auto_select: false,
           callback: (response: { credential: string }) => {
             const payload = parseJwt(response.credential);
             if (payload && payload.email) {

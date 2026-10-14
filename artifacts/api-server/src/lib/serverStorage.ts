@@ -9,7 +9,8 @@ const STORAGE_FILE = path.join(DATA_DIR, 'finance_db_fallback.json');
 // Bump this value to force every client to log out and to wipe the stored user
 // list once. Users are then re-collected from real Google logins only.
 // Financial data (transactions, budgets, accounts...) is NOT touched.
-export const SESSION_EPOCH = '2026-10-14-reset-1';
+export const BASE_EPOCH = '2026-10-14-reset-2';
+export let SESSION_EPOCH = BASE_EPOCH;
 
 export interface ServerStorageSchema {
   usersEpoch?: string;
@@ -41,6 +42,32 @@ function getEmptyStorage(): ServerStorageSchema {
   };
 }
 
+export function getSessionEpoch(): string {
+  try {
+    if (fs.existsSync(STORAGE_FILE)) {
+      const content = fs.readFileSync(STORAGE_FILE, 'utf-8');
+      const parsed = JSON.parse(content);
+      if (parsed.usersEpoch && parsed.usersEpoch >= BASE_EPOCH) {
+        SESSION_EPOCH = parsed.usersEpoch;
+        return parsed.usersEpoch;
+      }
+    }
+  } catch (e) {}
+  return SESSION_EPOCH;
+}
+
+export function rotateSessionEpoch(): string {
+  const newEpoch = `reset-${Date.now()}`;
+  SESSION_EPOCH = newEpoch;
+  const store = readServerStorage();
+  store.users = {};
+  store.workspaceMembers = [];
+  store.usersEpoch = newEpoch;
+  writeServerStorage(store);
+  console.log('[SERVER STORAGE] Users wiped and session epoch rotated to:', newEpoch);
+  return newEpoch;
+}
+
 export function readServerStorage(): ServerStorageSchema {
   try {
     if (!fs.existsSync(DATA_DIR)) {
@@ -51,13 +78,16 @@ export function readServerStorage(): ServerStorageSchema {
       const parsed = JSON.parse(content);
       const storage: ServerStorageSchema = { ...getEmptyStorage(), ...parsed };
 
-      // One-time user reset when the epoch changes (keeps financial data)
-      if (parsed.usersEpoch !== SESSION_EPOCH) {
+      // One-time user reset when the epoch changes or is older than BASE_EPOCH
+      if (!parsed.usersEpoch || parsed.usersEpoch < BASE_EPOCH) {
         storage.users = {};
         storage.workspaceMembers = [];
-        storage.usersEpoch = SESSION_EPOCH;
+        storage.usersEpoch = BASE_EPOCH;
+        SESSION_EPOCH = BASE_EPOCH;
         writeServerStorage(storage);
-        console.log('[SERVER STORAGE] Users reset for new session epoch:', SESSION_EPOCH);
+        console.log('[SERVER STORAGE] Users reset for new session epoch:', BASE_EPOCH);
+      } else {
+        SESSION_EPOCH = parsed.usersEpoch;
       }
 
       return storage;

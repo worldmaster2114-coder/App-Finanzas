@@ -24,6 +24,7 @@ import {
   Activity,
   Sparkles,
   Key,
+  LogOut,
 } from 'lucide-react';
 
 type AdminSupportPanelProps = {
@@ -214,6 +215,37 @@ export function AdminSupportPanel({ isOpen, onClose, currentUser }: AdminSupport
       setTimeout(() => setActionSuccess(''), 3500);
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  const handleResetAllSessions = async () => {
+    if (!confirm('¿Estás seguro de que deseas cerrar todas las sesiones en todos los dispositivos? Todos los usuarios deberán iniciar sesión con Google nuevamente.')) {
+      return;
+    }
+    setLoading(true);
+    try {
+      const email = currentUser?.email || 'worldmaster2114@gmail.com';
+      const res = await fetch('/api/admin/reset-sessions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-admin-email': email,
+        },
+        body: JSON.stringify({ email }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setActionSuccess('Todas las sesiones han sido cerradas. Los usuarios deberán autenticarse nuevamente.');
+        loadAllAdminData();
+      } else {
+        alert(data.error || 'Error al cerrar sesiones');
+      }
+    } catch (err: any) {
+      console.error(err);
+      alert('Error de conexión al cerrar sesiones');
+    } finally {
+      setLoading(false);
+      setTimeout(() => setActionSuccess(''), 4000);
     }
   };
 
@@ -658,6 +690,22 @@ export function AdminSupportPanel({ isOpen, onClose, currentUser }: AdminSupport
                         className="flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-border bg-secondary text-xs font-bold text-foreground hover:bg-secondary/80 transition"
                       >
                         <RefreshCw size={15} /> Ejecutar Test de Integridad
+                      </button>
+                    </div>
+
+                    <div className="rounded-2xl border border-destructive/30 bg-destructive/5 p-5 space-y-3 sm:col-span-2">
+                      <div className="flex items-center gap-2 text-destructive font-bold text-sm">
+                        <LogOut size={18} /> Forzar Cierre de Todas las Sesiones
+                      </div>
+                      <p className="text-xs text-muted-foreground leading-relaxed">
+                        Invalida de inmediato las sesiones activas en todos los dispositivos y navegadores (PC y móviles). Limpia registros de sesión antiguos para que los usuarios inicien sesión limpiamente con su cuenta real de Google. Las transacciones y presupuestos se mantienen intactos.
+                      </p>
+                      <button
+                        onClick={handleResetAllSessions}
+                        disabled={loading}
+                        className="flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-destructive text-xs font-bold text-destructive-foreground shadow-xs hover:bg-destructive/90 transition"
+                      >
+                        <LogOut size={15} /> Cerrar Todas las Sesiones Ahora
                       </button>
                     </div>
                   </div>

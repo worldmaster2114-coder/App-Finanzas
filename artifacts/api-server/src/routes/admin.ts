@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db, usersTable, workspacesTable, accountsTable, transactionsTable, budgetsTable, savingsGoalsTable, supportTicketsTable } from "@workspace/db";
 import { eq, desc, sql } from "drizzle-orm";
-import { readServerStorage } from "../lib/serverStorage";
+import { readServerStorage, rotateSessionEpoch } from "../lib/serverStorage";
 
 const adminRouter = Router();
 
@@ -287,6 +287,28 @@ adminRouter.post("/db/backup", async (req, res) => {
     };
 
     return res.json(backup);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/admin/reset-sessions (Force all clients to logout and clear session state)
+adminRouter.post("/reset-sessions", async (req, res) => {
+  try {
+    const newEpoch = rotateSessionEpoch();
+    if (db) {
+      try {
+        await db.delete(usersTable);
+        console.log("[ADMIN] Wiped usersTable for session reset");
+      } catch (dbErr) {
+        console.warn("[ADMIN] DB delete users error:", dbErr);
+      }
+    }
+    return res.json({
+      success: true,
+      epoch: newEpoch,
+      message: "Todas las sesiones han sido invalidadas. Todos los dispositivos deberán iniciar sesión con Google nuevamente.",
+    });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }

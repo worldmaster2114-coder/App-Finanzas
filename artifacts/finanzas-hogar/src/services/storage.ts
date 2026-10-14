@@ -58,6 +58,9 @@ export function getInitialSeedData(): FinanceDataState {
   };
 }
 
+export const CLIENT_KNOWN_EPOCH = '2026-10-14-reset-2';
+export const SESSION_EPOCH_STORAGE_KEY = 'finanzas-hogar:session-epoch';
+
 export function loadFinanceData(): FinanceDataState {
   const initial = getInitialSeedData();
   try {
@@ -76,8 +79,19 @@ export function loadFinanceData(): FinanceDataState {
         const safeDebts = Array.isArray(parsed.debts) ? parsed.debts : [];
         const safeRuleConfig = parsed.budgetRuleConfig || initial.budgetRuleConfig;
 
+        // Check if session epoch is valid; if outdated, force logout synchronously
+        const storedEpoch = localStorage.getItem(SESSION_EPOCH_STORAGE_KEY);
+        const isSessionValid = storedEpoch && storedEpoch >= CLIENT_KNOWN_EPOCH;
+        const validUser = isSessionValid ? (parsed.user || null) : null;
+
+        if (!isSessionValid && parsed.user) {
+          try {
+            (window as any)?.google?.accounts?.id?.disableAutoSelect?.();
+          } catch (e) {}
+        }
+
         return {
-          user: parsed.user || null,
+          user: validUser,
           workspaces: safeWorkspaces,
           activeWorkspace: safeActiveWorkspace,
           accounts: safeAccounts,

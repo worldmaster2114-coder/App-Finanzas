@@ -20,7 +20,7 @@ import { ShareHouseholdModal } from '@/components/share-household-modal';
 import { HouseholdChoiceModal } from '@/components/household-choice-modal';
 import { UserAvatar } from '@/components/user-avatar';
 import { normalizeCollaboratorName } from '@/lib/household-authors';
-import { loadFinanceData, saveFinanceData, saveToLocalStorage, syncFinanceDataToCloud } from '@/services/storage';
+import { loadFinanceData, saveFinanceData, saveToLocalStorage, syncFinanceDataToCloud, CLIENT_KNOWN_EPOCH, SESSION_EPOCH_STORAGE_KEY } from '@/services/storage';
 import { Budget, BudgetRuleConfig, DebtItem, FinanceDataState, RecurringTransaction, SavingsGoal, Transaction, UserProfile, UserPurpose, UserUseCase, Workspace } from '@/types/finance';
 import {
   Wallet,
@@ -211,13 +211,17 @@ export function AppShell() {
   const [sessionChecked, setSessionChecked] = useState(false);
   useEffect(() => {
     let cancelled = false;
-    (async () => {
+
+    const checkSessionEpoch = async () => {
       try {
         const res = await fetch('/api/auth/session-epoch', { cache: 'no-store' });
         const { epoch } = await res.json();
-        const key = 'finanzas-hogar:session-epoch';
-        if (epoch && localStorage.getItem(key) !== epoch) {
-          localStorage.setItem(key, epoch);
+        const stored = localStorage.getItem(SESSION_EPOCH_STORAGE_KEY);
+        if (epoch && stored !== epoch) {
+          localStorage.setItem(SESSION_EPOCH_STORAGE_KEY, epoch);
+          try {
+            (window as any)?.google?.accounts?.id?.disableAutoSelect?.();
+          } catch (e) {}
           setDataState((prev) => {
             const next = { ...prev, user: null };
             saveToLocalStorage(next);
@@ -230,9 +234,14 @@ export function AppShell() {
       } finally {
         if (!cancelled) setSessionChecked(true);
       }
-    })();
+    };
+
+    checkSessionEpoch();
+    const epochInterval = setInterval(checkSessionEpoch, 5000);
+
     return () => {
       cancelled = true;
+      clearInterval(epochInterval);
     };
   }, []);
 
@@ -404,6 +413,17 @@ export function AppShell() {
     setIsAuthenticated(true);
     setIsOnboardingOpen(false);
 
+    // Record session epoch so the new login is marked valid
+    try {
+      const epochRes = await fetch('/api/auth/session-epoch', { cache: 'no-store' });
+      const { epoch } = await epochRes.json();
+      if (epoch) {
+        localStorage.setItem(SESSION_EPOCH_STORAGE_KEY, epoch);
+      }
+    } catch (e) {
+      localStorage.setItem(SESSION_EPOCH_STORAGE_KEY, CLIENT_KNOWN_EPOCH);
+    }
+
     // Let the backend collect the real user data (name, email, photo) at login
     try {
       await fetch('/api/auth/google', {
@@ -546,10 +566,15 @@ export function AppShell() {
 
   // Logout Handler
   const handleLogout = () => {
-    setDataState((prev) => ({
-      ...prev,
-      user: null,
-    }));
+    try {
+      (window as any)?.google?.accounts?.id?.disableAutoSelect?.();
+    } catch (e) {}
+    localStorage.removeItem(SESSION_EPOCH_STORAGE_KEY);
+    setDataState((prev) => {
+      const next = { ...prev, user: null };
+      saveToLocalStorage(next);
+      return next;
+    });
     setIsAuthenticated(false);
   };
 
