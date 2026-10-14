@@ -9,16 +9,6 @@
       "useCase": "shared",
       "activeWorkspaceId": "ws-default",
       "createdAt": "2026-10-14T00:00:00.000Z"
-    },
-    "arianna@grupowalnut.com": {
-      "id": "usr-arianna",
-      "email": "arianna@grupowalnut.com",
-      "name": "Arianna",
-      "role": "user",
-      "purpose": "hogar",
-      "useCase": "shared",
-      "activeWorkspaceId": "ws-default",
-      "createdAt": "2026-10-14T00:00:00.000Z"
     }
   },
   "workspaces": {
@@ -28,7 +18,7 @@
       "type": "shared",
       "inviteCode": "503020",
       "ownerId": "usr-daniel-master",
-      "membersCount": 2,
+      "membersCount": 1,
       "createdAt": "2026-10-14T00:00:00.000Z"
     }
   },
@@ -38,13 +28,6 @@
       "workspaceId": "ws-default",
       "userId": "worldmaster2114@gmail.com",
       "role": "owner",
-      "joinedAt": "2026-10-14T00:00:00.000Z"
-    },
-    {
-      "id": "mem-arianna",
-      "workspaceId": "ws-default",
-      "userId": "arianna@grupowalnut.com",
-      "role": "member",
       "joinedAt": "2026-10-14T00:00:00.000Z"
     }
   ],

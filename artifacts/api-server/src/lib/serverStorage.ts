@@ -31,16 +31,6 @@ function getEmptyStorage(): ServerStorageSchema {
       activeWorkspaceId: "ws-default",
       createdAt: new Date().toISOString(),
     },
-    "arianna@grupowalnut.com": {
-      id: "usr-arianna",
-      email: "arianna@grupowalnut.com",
-      name: "Arianna",
-      role: "user",
-      purpose: "hogar",
-      useCase: "shared",
-      activeWorkspaceId: "ws-default",
-      createdAt: new Date().toISOString(),
-    },
   };
 
   const seedWorkspaces: Record<string, any> = {
@@ -61,13 +51,6 @@ function getEmptyStorage(): ServerStorageSchema {
       workspaceId: "ws-default",
       userId: "worldmaster2114@gmail.com",
       role: "owner",
-      joinedAt: new Date().toISOString(),
-    },
-    {
-      id: "mem-arianna",
-      workspaceId: "ws-default",
-      userId: "arianna@grupowalnut.com",
-      role: "member",
       joinedAt: new Date().toISOString(),
     },
   ];
@@ -102,9 +85,6 @@ export function readServerStorage(): ServerStorageSchema {
       } else {
         if (!storage.users["worldmaster2114@gmail.com"]) {
           storage.users["worldmaster2114@gmail.com"] = getEmptyStorage().users["worldmaster2114@gmail.com"];
-        }
-        if (!storage.users["arianna@grupowalnut.com"] && !Object.values(storage.users).some((u: any) => (u.name || '').toLowerCase().includes('arianna') || (u.name || '').toLowerCase().includes('ariadna'))) {
-          storage.users["arianna@grupowalnut.com"] = getEmptyStorage().users["arianna@grupowalnut.com"];
         }
       }
 

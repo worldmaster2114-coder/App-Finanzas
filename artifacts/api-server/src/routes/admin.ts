@@ -138,42 +138,6 @@ adminRouter.get("/users", async (req, res) => {
       users = Object.values(store.users || {});
     }
 
-    // Ensure Super Admin Daniel and partner Arianna are always present in the response
-    const hasDaniel = users.some((u: any) =>
-      (u.email || '').toLowerCase().includes('worldmaster2114') ||
-      (u.name || '').toLowerCase().includes('daniel')
-    );
-    if (!hasDaniel) {
-      users.unshift({
-        id: "usr-daniel-master",
-        email: "worldmaster2114@gmail.com",
-        name: "Daniel Gerardo",
-        role: "super_admin",
-        purpose: "controlar",
-        useCase: "shared",
-        activeWorkspaceId: "ws-default",
-        createdAt: new Date().toISOString(),
-      });
-    }
-
-    const hasArianna = users.some((u: any) =>
-      (u.name || '').toLowerCase().includes('arianna') ||
-      (u.name || '').toLowerCase().includes('ariadna') ||
-      (u.name || '').toLowerCase().includes('lucero')
-    );
-    if (!hasArianna) {
-      users.push({
-        id: "usr-arianna",
-        email: "arianna@grupowalnut.com",
-        name: "Arianna",
-        role: "user",
-        purpose: "hogar",
-        useCase: "shared",
-        activeWorkspaceId: "ws-default",
-        createdAt: new Date().toISOString(),
-      });
-    }
-
     return res.json({ users });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });

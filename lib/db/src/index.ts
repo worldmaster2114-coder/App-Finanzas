@@ -173,17 +173,7 @@ export async function initDatabase() {
     EXCEPTION WHEN OTHERS THEN NULL;
     END $$;
 
-    -- Seed Daniel (Super Admin)
-    INSERT INTO users (id, email, name, role, purpose, use_case, active_workspace_id)
-    VALUES ('usr-daniel-master', 'worldmaster2114@gmail.com', 'Daniel Gerardo', 'super_admin', 'controlar', 'shared', 'ws-default')
-    ON CONFLICT (email) DO UPDATE SET role = 'super_admin';
-
-    -- Seed Arianna
-    INSERT INTO users (id, email, name, role, purpose, use_case, active_workspace_id)
-    VALUES ('usr-arianna', 'arianna@grupowalnut.com', 'Arianna', 'user', 'hogar', 'shared', 'ws-default')
-    ON CONFLICT (email) DO NOTHING;
-
-    -- Seed Casa de Daniel (Hogar)
+    -- Ensure Casa de Daniel (Hogar) exists
     INSERT INTO workspaces (id, name, type, invite_code, owner_id)
     VALUES ('ws-default', 'Casa de Daniel (Hogar)', 'shared', '503020', 'usr-daniel-master')
     ON CONFLICT (id) DO NOTHING;
