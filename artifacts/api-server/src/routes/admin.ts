@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { db, usersTable, workspacesTable, accountsTable, transactionsTable, budgetsTable, savingsGoalsTable, supportTicketsTable } from "@workspace/db";
 import { eq, desc, sql } from "drizzle-orm";
+import { readServerStorage } from "../lib/serverStorage";
 
 const adminRouter = Router();
 
@@ -34,6 +35,7 @@ adminRouter.post("/verify-pin", (req, res) => {
 
 // Middleware: Ensure ONLY Super Admin emails can access any admin endpoints
 adminRouter.use((req, res, next) => {
+  if (req.method === "OPTIONS") return next();
   if (req.path === "/verify-pin") return next();
 
   const requesterEmail = (
@@ -76,7 +78,12 @@ adminRouter.get("/metrics", async (req, res) => {
       transactionsCount = Number(tRes[0]?.count || 0);
       openTicketsCount = Number(tkRes[0]?.count || 0);
     } else {
-      dbStatus = "local_memory";
+      dbStatus = "local_storage";
+      const store = readServerStorage();
+      usersCount = Object.keys(store.users || {}).length;
+      workspacesCount = Object.keys(store.workspaces || {}).length;
+      transactionsCount = Object.keys(store.transactions || {}).length;
+      openTicketsCount = (store.joinRequests || []).length;
     }
 
     return res.json({
@@ -111,7 +118,11 @@ adminRouter.get("/metrics", async (req, res) => {
 
 // GET /api/admin/users
 adminRouter.get("/users", async (req, res) => {
-  if (!db) return res.json({ users: [] });
+  if (!db) {
+    const store = readServerStorage();
+    const users = Object.values(store.users || {});
+    return res.json({ users });
+  }
   try {
     const users = await db.select().from(usersTable).orderBy(desc(usersTable.createdAt));
     return res.json({ users });
@@ -122,7 +133,11 @@ adminRouter.get("/users", async (req, res) => {
 
 // GET /api/admin/workspaces
 adminRouter.get("/workspaces", async (req, res) => {
-  if (!db) return res.json({ workspaces: [] });
+  if (!db) {
+    const store = readServerStorage();
+    const workspaces = Object.values(store.workspaces || {});
+    return res.json({ workspaces });
+  }
   try {
     const workspaces = await db.select().from(workspacesTable).orderBy(desc(workspacesTable.createdAt));
     return res.json({ workspaces });
@@ -133,7 +148,10 @@ adminRouter.get("/workspaces", async (req, res) => {
 
 // GET /api/admin/tickets
 adminRouter.get("/tickets", async (req, res) => {
-  if (!db) return res.json({ tickets: [] });
+  if (!db) {
+    const store = readServerStorage();
+    return res.json({ tickets: store.joinRequests || [] });
+  }
   try {
     const tickets = await db.select().from(supportTicketsTable).orderBy(desc(supportTicketsTable.createdAt));
     return res.json({ tickets });
@@ -200,7 +218,13 @@ adminRouter.patch("/tickets/:id", async (req, res) => {
 // POST /api/admin/db/backup (Full Database Export)
 adminRouter.post("/db/backup", async (req, res) => {
   if (!db) {
-    return res.status(400).json({ error: "Base de datos no conectada" });
+    const store = readServerStorage();
+    return res.json({
+      system: "50-30-20 Finanzas Grupo Walnut (Local Storage Backup)",
+      exportedAt: new Date().toISOString(),
+      version: "v2.3",
+      data: store,
+    });
   }
 
   try {

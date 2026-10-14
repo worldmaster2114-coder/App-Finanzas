@@ -103,12 +103,14 @@ export function AdminSupportPanel({ isOpen, onClose, currentUser }: AdminSupport
     if (!isSuperAdminEmail) return;
     setLoading(true);
     try {
-      const headers = { 'x-admin-email': currentUser?.email || '' };
+      const email = currentUser?.email || '';
+      const headers = { 'x-admin-email': email };
+      const qEmail = encodeURIComponent(email);
       const [mRes, uRes, wRes, tRes] = await Promise.all([
-        fetch('/api/admin/metrics', { headers }).then((r) => r.json()),
-        fetch('/api/admin/users', { headers }).then((r) => r.json()),
-        fetch('/api/admin/workspaces', { headers }).then((r) => r.json()),
-        fetch('/api/admin/tickets', { headers }).then((r) => r.json()),
+        fetch(`/api/admin/metrics?email=${qEmail}`, { headers }).then((r) => r.json()),
+        fetch(`/api/admin/users?email=${qEmail}`, { headers }).then((r) => r.json()),
+        fetch(`/api/admin/workspaces?email=${qEmail}`, { headers }).then((r) => r.json()),
+        fetch(`/api/admin/tickets?email=${qEmail}`, { headers }).then((r) => r.json()),
       ]);
 
       if (mRes.metrics) setMetrics(mRes.metrics);
@@ -144,11 +146,16 @@ export function AdminSupportPanel({ isOpen, onClose, currentUser }: AdminSupport
 
   const handleResolveTicket = async (ticketId: string) => {
     const reply = replyText[ticketId] || 'Ticket atendido y resuelto por el Administrador.';
+    const email = currentUser?.email || '';
+    const qEmail = encodeURIComponent(email);
     try {
-      await fetch(`/api/admin/tickets/${ticketId}`, {
+      await fetch(`/api/admin/tickets/${ticketId}?email=${qEmail}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'resolved', adminReply: reply }),
+        headers: {
+          'Content-Type': 'application/json',
+          'x-admin-email': email,
+        },
+        body: JSON.stringify({ status: 'resolved', adminReply: reply, email }),
       });
       setActionSuccess(`Ticket #${ticketId.slice(-4)} marcado como resuelto.`);
       setTimeout(() => setActionSuccess(''), 3500);
@@ -159,8 +166,17 @@ export function AdminSupportPanel({ isOpen, onClose, currentUser }: AdminSupport
   };
 
   const handleExportFullBackup = async () => {
+    const email = currentUser?.email || '';
+    const qEmail = encodeURIComponent(email);
     try {
-      const res = await fetch('/api/admin/db/backup', { method: 'POST' });
+      const res = await fetch(`/api/admin/db/backup?email=${qEmail}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-admin-email': email,
+        },
+        body: JSON.stringify({ email }),
+      });
       const data = await res.json();
       const jsonStr = JSON.stringify(data, null, 2);
       const blob = new Blob([jsonStr], { type: 'application/json' });
@@ -170,7 +186,7 @@ export function AdminSupportPanel({ isOpen, onClose, currentUser }: AdminSupport
       a.download = `backup_503020_db_${new Date().toISOString().slice(0, 10)}.json`;
       a.click();
       URL.revokeObjectURL(url);
-      setActionSuccess('Backup global de PostgreSQL descargado exitosamente.');
+      setActionSuccess('Backup global descargado exitosamente.');
       setTimeout(() => setActionSuccess(''), 3500);
     } catch (err) {
       console.error(err);
