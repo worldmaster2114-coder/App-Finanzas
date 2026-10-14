@@ -79,6 +79,7 @@ export function AdminSupportPanel({ isOpen, onClose, currentUser }: AdminSupport
   const [ticketsList, setTicketsList] = useState<Ticket[]>([]);
   const [replyText, setReplyText] = useState<{ [ticketId: string]: string }>({});
   const [actionSuccess, setActionSuccess] = useState('');
+  const [loadError, setLoadError] = useState('');
 
   const isSuperAdminEmail = currentUser?.email && [
     'worldmaster2114@gmail.com',
@@ -97,52 +98,54 @@ export function AdminSupportPanel({ isOpen, onClose, currentUser }: AdminSupport
     if (isOpen && isUnlocked) {
       loadAllAdminData();
     }
-  }, [isOpen, isUnlocked]);
+  }, [isOpen, isUnlocked, currentUser?.email]);
 
+  // Fetch one admin endpoint; throws a readable error on HTTP/JSON failure
+  const fetchAdmin = async (path: string) => {
+    const email = currentUser?.email || '';
+    const res = await fetch(`/api/admin/${path}?email=${encodeURIComponent(email)}`, {
+      headers: { 'x-admin-email': email },
+      cache: 'no-store',
+    });
+    let body: any = null;
+    try {
+      body = await res.json();
+    } catch {
+      throw new Error(`/${path}: respuesta no válida (HTTP ${res.status})`);
+    }
+    if (!res.ok) {
+      throw new Error(`/${path}: ${body?.error || `HTTP ${res.status}`}`);
+    }
+    return body;
+  };
+
+  // Loads ONLY what the server returns. No placeholder/invented data.
   const loadAllAdminData = async () => {
     if (!isSuperAdminEmail) return;
     setLoading(true);
-    try {
-      const email = currentUser?.email || '';
-      const headers = { 'x-admin-email': email };
-      const qEmail = encodeURIComponent(email);
-      const [mRes, uRes, wRes, tRes] = await Promise.all([
-        fetch(`/api/admin/metrics?email=${qEmail}`, { headers }).then((r) => r.json()),
-        fetch(`/api/admin/users?email=${qEmail}`, { headers }).then((r) => r.json()),
-        fetch(`/api/admin/workspaces?email=${qEmail}`, { headers }).then((r) => r.json()),
-        fetch(`/api/admin/tickets?email=${qEmail}`, { headers }).then((r) => r.json()),
-      ]);
+    setLoadError('');
+    const [m, u, w, t] = await Promise.allSettled([
+      fetchAdmin('metrics'),
+      fetchAdmin('users'),
+      fetchAdmin('workspaces'),
+      fetchAdmin('tickets'),
+    ]);
 
-      if (mRes.metrics) setMetrics(mRes.metrics);
-      
-      let users = Array.isArray(uRes.users) ? uRes.users : [];
-      if (currentUser?.email && !users.some((u: any) => u.email?.toLowerCase().trim() === currentUser.email?.toLowerCase().trim())) {
-        users = [currentUser, ...users];
-      }
-      setUsersList(users);
+    const errors: string[] = [];
+    if (m.status === 'fulfilled') setMetrics(m.value.metrics ?? null);
+    else errors.push(m.reason?.message || 'metrics');
+    if (u.status === 'fulfilled') setUsersList(Array.isArray(u.value.users) ? u.value.users : []);
+    else errors.push(u.reason?.message || 'users');
+    if (w.status === 'fulfilled') setWorkspacesList(Array.isArray(w.value.workspaces) ? w.value.workspaces : []);
+    else errors.push(w.reason?.message || 'workspaces');
+    if (t.status === 'fulfilled') setTicketsList(Array.isArray(t.value.tickets) ? t.value.tickets : []);
+    else errors.push(t.reason?.message || 'tickets');
 
-      let workspaces = Array.isArray(wRes.workspaces) ? wRes.workspaces : [];
-      if (!workspaces.some((w: any) => w.inviteCode === '503020' || w.id === 'ws-default')) {
-        workspaces = [
-          {
-            id: 'ws-default',
-            name: 'Casa de Daniel (Hogar)',
-            type: 'shared',
-            inviteCode: '503020',
-            ownerId: currentUser?.id || 'usr-daniel-master',
-            membersCount: 2,
-          },
-          ...workspaces,
-        ];
-      }
-      setWorkspacesList(workspaces);
-
-      if (tRes.tickets) setTicketsList(tRes.tickets);
-    } catch (err) {
-      console.error('Error fetching admin data:', err);
-    } finally {
-      setLoading(false);
+    if (errors.length > 0) {
+      console.error('[ADMIN PANEL] Errores de carga:', errors);
+      setLoadError(errors.join(' · '));
     }
+    setLoading(false);
   };
 
   const handleVerifyPin = async (e: React.FormEvent) => {
@@ -461,6 +464,15 @@ export function AdminSupportPanel({ isOpen, onClose, currentUser }: AdminSupport
               {/* TAB 2: USERS & WORKSPACES */}
               {activeTab === 'users' && (
                 <div className="space-y-6 animate-in fade-in-50">
+                  {loadError && (
+                    <div className="rounded-xl border border-red-500/40 bg-red-500/10 p-3 text-xs text-red-500 flex items-start gap-2">
+                      <AlertCircle size={14} className="mt-0.5 shrink-0" />
+                      <div>
+                        <p className="font-bold">No se pudieron leer algunos datos del servidor:</p>
+                        <p className="font-mono break-all">{loadError}</p>
+                      </div>
+                    </div>
+                  )}
                   <div>
                     <h4 className="font-bold text-sm text-foreground mb-3 flex items-center gap-2">
                       <Users size={16} /> Usuarios Registrados ({usersList.length})
